@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        id="cordova-plugin-qrscanner-pro"
+        version="1.0.0">
+    <name>QrScannerPro</name>
+    <description>Highly customizable QR scanner plugin for Apache Cordova (Android &amp; iOS).</description>
+    <license>MIT</license>
+    <keywords>cordova,qr,scanner,camera</keywords>
+
+    <js-module src="www/qrscannerpro.js" name="QrScannerPro">
+        <clobbers target="cordova.plugins.qrScannerPro" />
+    </js-module>
+
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="QrScannerPro">
+                <param name="android-package" value="com.qrscannerpro.QrScannerPro" />
+            </feature>
+        </config-file>
+
+        <config-file target="AndroidManifest.xml" parent="/manifest">
+            <uses-permission android:name="android.permission.CAMERA" />
+        </config-file>
+
+        <framework src="com.journeyapps:zxing-android-embedded:4.3.0" />
+        <framework src="com.google.zxing:core:3.5.3" />
+
+        <source-file src="src/android/QrScannerPro.java" target-dir="src/com/qrscannerpro" />
+        <source-file src="src/android/ScannerActivity.java" target-dir="src/com/qrscannerpro" />
+    </platform>
+
+    <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="QrScannerPro">
+                <param name="ios-package" value="QrScannerPro" />
+            </feature>
+        </config-file>
+
+        <config-file target="*-Info.plist" parent="NSCameraUsageDescription">
+            <string>Allow camera access to scan QR codes.</string>
+        </config-file>
+
+        <framework src="AVFoundation.framework" />
+        <framework src="Vision.framework" />
+        <source-file src="src/ios/QrScannerPro.m" compiler-flags="-fobjc-arc" />
+        <source-file src="src/ios/QRScannerViewController.h" />
+        <source-file src="src/ios/QRScannerViewController.m" compiler-flags="-fobjc-arc" />
+    </platform>
+</plugin>

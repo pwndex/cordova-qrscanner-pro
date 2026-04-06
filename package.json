@@ -1,0 +1,50 @@
+{
+  "name": "cordova-plugin-qrscanner-pro",
+  "version": "1.0.0",
+  "description": "Highly customizable QR scanner plugin for Apache Cordova (Android & iOS).",
+  "homepage": "https://github.com/pwndex/cordova-qrscanner-pro#readme",
+  "bugs": {
+    "url": "https://github.com/pwndex/cordova-qrscanner-pro/issues"
+  },
+  "cordova": {
+    "id": "cordova-plugin-qrscanner-pro",
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  },
+  "keywords": [
+    "ecosystem:cordova",
+    "cordova-android",
+    "cordova-ios",
+    "qr",
+    "scanner",
+    "barcode",
+    "camera"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pwndex/cordova-qrscanner-pro.git"
+  },
+  "license": "MIT",
+  "author": "pwndex",
+  "files": [
+    "www/",
+    "src/",
+    "plugin.xml",
+    "README.md",
+    "LICENSE",
+    "examples/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "cordovaDependencies": {
+      "1.0.0": {
+        "cordova-android": ">=10.0.0",
+        "cordova-ios": ">=7.0.0"
+      }
+    }
+  }
+}
