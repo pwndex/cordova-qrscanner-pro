@@ -8,6 +8,7 @@ import android.util.Log;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
+import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -177,7 +178,7 @@ public class QrScannerPro extends CordovaPlugin {
             }
             cb = scanCallbackContext;
             long got = intent != null ? intent.getLongExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN, -1L) : -1L;
-            if (got != pendingScanSessionTokenForResult) {
+            if (pendingScanSessionTokenForResult > 0 && got != pendingScanSessionTokenForResult) {
                 boolean nullIntentCancel = intent == null && resultCode == Activity.RESULT_CANCELED;
                 if (!nullIntentCancel) {
                     debugLog("onActivityResult ignored (session token mismatch, got=" + got + " pending=" + pendingScanSessionTokenForResult + ")");
@@ -186,6 +187,7 @@ public class QrScannerPro extends CordovaPlugin {
                 debugLog("onActivityResult: null intent cancel, accepting as current session");
             }
             scanCallbackContext = null;
+            pendingScanSessionTokenForResult = 0;
             lastScanSessionEndedAtMs = System.currentTimeMillis();
         }
 
@@ -213,10 +215,29 @@ public class QrScannerPro extends CordovaPlugin {
     @Override
     public void onReset() {
         super.onReset();
-        ScannerActivity scannerActivity = activeScannerActivity.get();
-        if (scannerActivity != null) {
-            scannerActivity.cancelFromPlugin();
+        synchronized (scanLock) {
+            if (scanCallbackContext == null) {
+                return;
+            }
+            ScannerActivity scannerActivity = activeScannerActivity.get();
+            if (scannerActivity != null) {
+                scannerActivity.cancelFromPlugin();
+            }
         }
+    }
+
+    @Override
+    public void onRestoreStateForActivityResult(android.os.Bundle state, CallbackContext callbackContext) {
+        synchronized (scanLock) {
+            scanCallbackContext = callbackContext;
+            // Token is unknown after process recreation; accept next result for REQUEST_SCAN.
+            pendingScanSessionTokenForResult = 0;
+        }
+        // Keep callback alive until native activity returns a result.
+        PluginResult pending = new PluginResult(PluginResult.Status.NO_RESULT);
+        pending.setKeepCallback(true);
+        callbackContext.sendPluginResult(pending);
+        debugLog("onRestoreStateForActivityResult: callback restored");
     }
 
     private void debugLog(String message) {
