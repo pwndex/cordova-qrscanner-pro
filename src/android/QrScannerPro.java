@@ -179,12 +179,13 @@ public class QrScannerPro extends CordovaPlugin {
             cb = scanCallbackContext;
             long got = intent != null ? intent.getLongExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN, -1L) : -1L;
             if (pendingScanSessionTokenForResult > 0 && got != pendingScanSessionTokenForResult) {
-                boolean nullIntentCancel = intent == null && resultCode == Activity.RESULT_CANCELED;
-                if (!nullIntentCancel) {
+                boolean cancelWithoutToken = resultCode == Activity.RESULT_CANCELED
+                        && (intent == null || !intent.hasExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN));
+                if (!cancelWithoutToken) {
                     debugLog("onActivityResult ignored (session token mismatch, got=" + got + " pending=" + pendingScanSessionTokenForResult + ")");
                     return;
                 }
-                debugLog("onActivityResult: null intent cancel, accepting as current session");
+                debugLog("onActivityResult: cancel without token, accepting as current session");
             }
             scanCallbackContext = null;
             pendingScanSessionTokenForResult = 0;
@@ -215,14 +216,25 @@ public class QrScannerPro extends CordovaPlugin {
     @Override
     public void onReset() {
         super.onReset();
+        CallbackContext cbToCancel = null;
+        ScannerActivity scannerActivity;
         synchronized (scanLock) {
             if (scanCallbackContext == null) {
                 return;
             }
-            ScannerActivity scannerActivity = activeScannerActivity.get();
-            if (scannerActivity != null) {
-                scannerActivity.cancelFromPlugin();
+            scannerActivity = activeScannerActivity.get();
+            if (scannerActivity == null) {
+                cbToCancel = scanCallbackContext;
+                scanCallbackContext = null;
+                pendingScanSessionTokenForResult = 0;
             }
+        }
+        if (scannerActivity != null) {
+            scannerActivity.cancelFromPlugin();
+            return;
+        }
+        if (cbToCancel != null) {
+            cbToCancel.error("Scan cancelled.");
         }
     }
 
