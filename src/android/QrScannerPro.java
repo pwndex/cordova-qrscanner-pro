@@ -2,6 +2,8 @@ package com.qrscannerpro;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import org.apache.cordova.CallbackContext;
@@ -14,11 +16,17 @@ import java.lang.ref.WeakReference;
 
 public class QrScannerPro extends CordovaPlugin {
     private static final int REQUEST_SCAN = 47021;
+    /** Short pause so the previous ScannerActivity can release the camera before the next open (avoids rapid open/close on repeat scans). */
+    private static final int SCAN_COOLDOWN_MS = 120;
     static WeakReference<ScannerActivity> activeScannerActivity = new WeakReference<>(null);
     private boolean debugEnabled = false;
     private String debugTag = "QrScannerPro-Android";
 
     private CallbackContext scanCallbackContext;
+    private final Object scanLock = new Object();
+    private long lastScanSessionEndedAtMs;
+    private long nextScanSessionToken;
+    private long pendingScanSessionTokenForResult;
 
     @Override
     protected void pluginInitialize() {
@@ -48,18 +56,40 @@ public class QrScannerPro extends CordovaPlugin {
         debugEnabled = options.optBoolean("debug", false);
         debugTag = options.optString("debugTag", "QrScannerPro-Android");
         debugLog("scan called");
-        if (scanCallbackContext != null) {
-            callbackContext.error("A scan session is already active.");
-            return true;
+        final long sessionToken = ++nextScanSessionToken;
+        final CallbackContext pendingCb = callbackContext;
+
+        synchronized (scanLock) {
+            if (scanCallbackContext != null) {
+                callbackContext.error("A scan session is already active.");
+                return true;
+            }
+
+            Activity activity = cordova.getActivity();
+            Intent intent = new Intent(activity, ScannerActivity.class);
+            intent.putExtra(ScannerActivity.EXTRA_OPTIONS_JSON, options.toString());
+            intent.putExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN, sessionToken);
+
+            scanCallbackContext = callbackContext;
+            cordova.setActivityResultCallback(this);
+
+            long delayMs = Math.max(0, SCAN_COOLDOWN_MS - (System.currentTimeMillis() - lastScanSessionEndedAtMs));
+            if (delayMs > 0) {
+                debugLog("delaying startActivityForResult by " + delayMs + " ms (camera cooldown)");
+            }
+
+            Handler main = new Handler(Looper.getMainLooper());
+            main.postDelayed(() -> {
+                synchronized (scanLock) {
+                    if (scanCallbackContext != pendingCb) {
+                        debugLog("startScan runnable skipped (session replaced or cleared)");
+                        return;
+                    }
+                    pendingScanSessionTokenForResult = sessionToken;
+                    cordova.startActivityForResult(QrScannerPro.this, intent, REQUEST_SCAN);
+                }
+            }, delayMs);
         }
-
-        Activity activity = cordova.getActivity();
-        Intent intent = new Intent(activity, ScannerActivity.class);
-        intent.putExtra(ScannerActivity.EXTRA_OPTIONS_JSON, options.toString());
-
-        scanCallbackContext = callbackContext;
-        cordova.setActivityResultCallback(this);
-        cordova.startActivityForResult(this, intent, REQUEST_SCAN);
         return true;
     }
 
@@ -139,30 +169,45 @@ public class QrScannerPro extends CordovaPlugin {
         if (requestCode != REQUEST_SCAN) {
             return;
         }
-        if (scanCallbackContext == null) {
-            return;
+        final CallbackContext cb;
+        synchronized (scanLock) {
+            if (scanCallbackContext == null) {
+                debugLog("onActivityResult ignored (no pending callback — duplicate delivery?)");
+                return;
+            }
+            cb = scanCallbackContext;
+            long got = intent != null ? intent.getLongExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN, -1L) : -1L;
+            if (got != pendingScanSessionTokenForResult) {
+                boolean nullIntentCancel = intent == null && resultCode == Activity.RESULT_CANCELED;
+                if (!nullIntentCancel) {
+                    debugLog("onActivityResult ignored (session token mismatch, got=" + got + " pending=" + pendingScanSessionTokenForResult + ")");
+                    return;
+                }
+                debugLog("onActivityResult: null intent cancel, accepting as current session");
+            }
+            scanCallbackContext = null;
+            lastScanSessionEndedAtMs = System.currentTimeMillis();
         }
 
         if (resultCode == Activity.RESULT_OK && intent != null) {
             debugLog("onActivityResult success");
             String payload = intent.getStringExtra(ScannerActivity.EXTRA_RESULT_JSON);
             if (payload == null) {
-                scanCallbackContext.error("Scan finished without payload.");
+                cb.error("Scan finished without payload.");
             } else {
                 try {
-                    scanCallbackContext.success(new JSONObject(payload));
+                    cb.success(new JSONObject(payload));
                 } catch (JSONException e) {
-                    scanCallbackContext.error("Invalid scan payload.");
+                    cb.error("Invalid scan payload.");
                 }
             }
         } else if (intent != null && intent.hasExtra(ScannerActivity.EXTRA_ERROR_MESSAGE)) {
             debugLog("onActivityResult error/cancel: " + intent.getStringExtra(ScannerActivity.EXTRA_ERROR_MESSAGE));
-            scanCallbackContext.error(intent.getStringExtra(ScannerActivity.EXTRA_ERROR_MESSAGE));
+            cb.error(intent.getStringExtra(ScannerActivity.EXTRA_ERROR_MESSAGE));
         } else {
             debugLog("onActivityResult cancelled without payload");
-            scanCallbackContext.error("Scan cancelled.");
+            cb.error("Scan cancelled.");
         }
-        scanCallbackContext = null;
     }
 
     @Override

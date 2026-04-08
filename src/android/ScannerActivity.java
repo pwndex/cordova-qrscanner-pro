@@ -51,6 +51,8 @@ public class ScannerActivity extends Activity {
     public static final String EXTRA_OPTIONS_JSON = "qrscannerpro.options";
     public static final String EXTRA_RESULT_JSON = "qrscannerpro.result";
     public static final String EXTRA_ERROR_MESSAGE = "qrscannerpro.error";
+    /** Echoed on every result so Cordova can ignore stale/duplicate onActivityResult deliveries. */
+    public static final String EXTRA_SCAN_SESSION_TOKEN = "qrscannerpro.sessionToken";
 
     private static final int CAMERA_PERMISSION_REQUEST = 2118;
 
@@ -67,6 +69,7 @@ public class ScannerActivity extends Activity {
     private boolean noDetectionLogged = false;
     private boolean debugEnabled = false;
     private String debugTag = "QrScannerPro-Android";
+    private long sessionToken;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -76,6 +79,7 @@ public class ScannerActivity extends Activity {
         beepManager = new BeepManager(this);
 
         parseOptions();
+        sessionToken = getIntent().getLongExtra(EXTRA_SCAN_SESSION_TOKEN, 0L);
         buildUi();
         QrScannerPro.activeScannerActivity = new java.lang.ref.WeakReference<>(this);
 
@@ -286,6 +290,7 @@ public class ScannerActivity extends Activity {
         }
 
         Intent data = new Intent();
+        data.putExtra(EXTRA_SCAN_SESSION_TOKEN, sessionToken);
         data.putExtra(EXTRA_RESULT_JSON, out.toString());
         setResult(Activity.RESULT_OK, data);
         finish();
@@ -298,6 +303,7 @@ public class ScannerActivity extends Activity {
     private void cancelScan(String message) {
         debugLog("cancelScan: " + message);
         Intent data = new Intent();
+        data.putExtra(EXTRA_SCAN_SESSION_TOKEN, sessionToken);
         data.putExtra(EXTRA_ERROR_MESSAGE, message);
         setResult(Activity.RESULT_CANCELED, data);
         finish();
@@ -305,6 +311,7 @@ public class ScannerActivity extends Activity {
 
     private void finishWithError(String message) {
         Intent data = new Intent();
+        data.putExtra(EXTRA_SCAN_SESSION_TOKEN, sessionToken);
         data.putExtra(EXTRA_ERROR_MESSAGE, message);
         setResult(Activity.RESULT_CANCELED, data);
         finish();
@@ -409,10 +416,13 @@ public class ScannerActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         debugLog("onDestroy");
+        if (barcodeView != null) {
+            barcodeView.pause();
+        }
         handler.removeCallbacksAndMessages(null);
         QrScannerPro.activeScannerActivity = new java.lang.ref.WeakReference<>(null);
+        super.onDestroy();
     }
 
     @Override
