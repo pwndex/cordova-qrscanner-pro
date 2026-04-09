@@ -16,7 +16,7 @@ import android.os.Looper;
 import android.os.Build;
 import android.util.Base64;
 import android.util.Log;
-import android.util.Size;
+import com.journeyapps.barcodescanner.Size;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -337,7 +337,11 @@ public class ScannerActivity extends Activity {
             return;
         }
         try {
-            barcodeView.setTorch(enabled);
+            if (enabled) {
+                barcodeView.setTorchOn();
+            } else {
+                barcodeView.setTorchOff();
+            }
             torchEnabled = enabled;
             debugLog("setTorch=" + enabled);
         } catch (RuntimeException e) {
