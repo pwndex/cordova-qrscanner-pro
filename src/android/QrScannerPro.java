@@ -73,6 +73,9 @@ public class QrScannerPro extends CordovaPlugin {
 
             scanCallbackContext = callbackContext;
             cordova.setActivityResultCallback(this);
+            // Bind expected result token immediately to avoid stale onActivityResult
+            // hijacking a newly scheduled scan during the launch cooldown window.
+            pendingScanSessionTokenForResult = sessionToken;
 
             long delayMs = Math.max(0, SCAN_COOLDOWN_MS - (System.currentTimeMillis() - lastScanSessionEndedAtMs));
             if (delayMs > 0) {
@@ -86,7 +89,6 @@ public class QrScannerPro extends CordovaPlugin {
                         debugLog("startScan runnable skipped (session replaced or cleared)");
                         return;
                     }
-                    pendingScanSessionTokenForResult = sessionToken;
                     cordova.startActivityForResult(QrScannerPro.this, intent, REQUEST_SCAN);
                 }
             }, delayMs);
@@ -179,13 +181,8 @@ public class QrScannerPro extends CordovaPlugin {
             cb = scanCallbackContext;
             long got = intent != null ? intent.getLongExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN, -1L) : -1L;
             if (pendingScanSessionTokenForResult > 0 && got != pendingScanSessionTokenForResult) {
-                boolean cancelWithoutToken = resultCode == Activity.RESULT_CANCELED
-                        && (intent == null || !intent.hasExtra(ScannerActivity.EXTRA_SCAN_SESSION_TOKEN));
-                if (!cancelWithoutToken) {
-                    debugLog("onActivityResult ignored (session token mismatch, got=" + got + " pending=" + pendingScanSessionTokenForResult + ")");
-                    return;
-                }
-                debugLog("onActivityResult: cancel without token, accepting as current session");
+                debugLog("onActivityResult ignored (session token mismatch, got=" + got + " pending=" + pendingScanSessionTokenForResult + ")");
+                return;
             }
             scanCallbackContext = null;
             pendingScanSessionTokenForResult = 0;
