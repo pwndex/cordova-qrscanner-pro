@@ -395,7 +395,6 @@
     [button setTitleColor:titleColor forState:UIControlStateHighlighted];
     [button setTitleColor:titleColor forState:UIControlStateSelected];
     button.backgroundColor = [self buttonBackgroundColorIsFlash:isFlash active:active];
-    button.selected = active;
     CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
     CGFloat radius = MAX(0.0, [self optFloat:@"buttonCornerRadius" defaultValue:(iconMode ? (size / 2.0) : 10.0)]);
     button.layer.cornerRadius = radius;
@@ -489,13 +488,11 @@
 - (void)refreshFlashButtonAppearance {
     BOOL active = self.torchEnabled;
     [self styleButton:self.flashButton isFlash:YES active:active];
-    self.flashButton.highlighted = active;
     [self refreshSvgForButton:YES active:active];
 }
 
 - (void)refreshCancelButtonAppearance {
     [self styleButton:self.cancelButton isFlash:NO active:NO];
-    self.cancelButton.highlighted = NO;
     [self refreshSvgForButton:NO active:NO];
 }
 

@@ -492,7 +492,6 @@ public class ScannerActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             button.setBackgroundTintList(null);
         }
-        button.setSelected(active);
     }
 
     private String getButtonIconSource(boolean isFlashButton) {
@@ -509,7 +508,6 @@ public class ScannerActivity extends Activity {
     private void refreshFlashButtonAppearance() {
         boolean active = torchEnabled;
         styleButtonForState(flashButton, true, active);
-        flashButton.setPressed(active);
         if (!hasSvg(true)) {
             flashButton.setText(getButtonLabel(true));
         }
@@ -593,7 +591,6 @@ public class ScannerActivity extends Activity {
     private void refreshCancelButtonAppearance() {
         boolean active = false;
         styleButtonForState(cancelButton, false, false);
-        cancelButton.setPressed(false);
         if (!hasSvg(false)) {
             cancelButton.setText(getButtonLabel(false));
         }
