@@ -13,7 +13,7 @@ Minimal, production-ready, highly customizable QR scanner plugin for Apache Cord
 
 - Native camera scanning on both platforms
 - Fast, stable QR detection with clean UX defaults
-- Full-screen customizable scanner UI (scan area, frame, overlay, loader, scan line, buttons)
+- Full-screen customizable scanner UI (scan area, frame, overlay, loader, scan line, header, buttons)
 - Straightforward API for app flows (`scan`, `cancel`, `toggleFlash`, `setFlash`)
 - Security-friendly design (no network calls, local-only processing)
 
@@ -61,13 +61,31 @@ document.addEventListener("deviceready", function () {
       loadingDelayMs: 850,
       showFlashButton: true,
       showCancelButton: true,
+      headerText: "Align QR in frame",
+      headerHeight: 58,
+      headerPadding: 12,
+      headerBackgroundColor: "#66000000",
+      headerTextColor: "#FFFFFF",
+      headerFontSize: 17,
       buttonMode: "icon",
       buttonSize: 54,
       buttonCornerRadius: 27,
       buttonSpacing: 14,
       buttonBottomOffset: 56,
-      flashButtonIcon: "⚡",
-      cancelButtonIcon: "✕",
+      flashButtonSvg:
+        "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
+      flashButtonActiveSvg:
+        "<svg viewBox='0 0 24 24'><path d='M12 2l-6 11h5l-1 9 8-12h-5V2z'/></svg>",
+      cancelButtonSvg:
+        "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2.2' fill='none' stroke-linecap='round'/></svg>",
+      buttonTextColor: "#FFFFFF",
+      buttonBackgroundColor: "#80111111",
+      buttonActiveTextColor: "#111111",
+      buttonActiveBackgroundColor: "#FFFFFF",
+      flashButtonBackgroundColor: "#AA0057FF",
+      flashButtonActiveBackgroundColor: "#FF2F7BFF",
+      cancelButtonBackgroundColor: "#AA2A2A2A",
+      cancelButtonActiveBackgroundColor: "#FF505050",
       animateScanLine: true
     },
     function onSuccess(result) {
@@ -320,12 +338,22 @@ All options are optional. Defaults are safe for production.
 | `showLoader` | boolean | `true` | Show loader before returning result |
 | `loaderColor` | string | `#00E676` | Loader color |
 | `loadingDelayMs` | number | `700` | Delay before success callback |
+| `headerText` | string | `""` | Top centered header text (empty = hidden) |
+| `headerHeight` | number | `56` | Header height (dp/pt) |
+| `headerPadding` | number | `12` | Inner text padding inside header (dp/pt) |
+| `headerBackgroundColor` | string | `#00000000` | Header background color (supports transparent) |
+| `headerTextColor` | string | `#FFFFFFFF` | Header text color |
+| `headerFontSize` | number | `18` | Header text size |
 | `showFlashButton` | boolean | `true` | Show Flash button |
 | `flashButtonText` | string | `Flash` | Flash button label |
 | `flashButtonIcon` | string | `⚡` | Flash icon in `buttonMode: "icon"` |
+| `flashButtonSvg` | string | `""` | Inline SVG or SVG data URL for flash button (icon mode) |
+| `flashButtonActiveSvg` | string | `""` | Active-state SVG for flash button (icon mode) |
 | `showCancelButton` | boolean | `true` | Show Cancel button |
 | `cancelButtonText` | string | `Cancel` | Cancel button label |
 | `cancelButtonIcon` | string | `✕` | Cancel icon in `buttonMode: "icon"` |
+| `cancelButtonSvg` | string | `""` | Inline SVG or SVG data URL for cancel button (icon mode) |
+| `cancelButtonActiveSvg` | string | `""` | Active-state SVG for cancel button (icon mode) |
 | `buttonMode` | string | `text` | `text` or `icon` |
 | `buttonSize` | number | `52` | Button height; icon mode uses square |
 | `buttonTextWidth` | number | `110` | Text mode button width |
@@ -334,6 +362,16 @@ All options are optional. Defaults are safe for production.
 | `buttonBottomOffset` | number | `46` | Distance from bottom edge |
 | `buttonTextColor` | string | `#FFFFFFFF` | Button text color |
 | `buttonBackgroundColor` | string | `#66000000` | Button background color |
+| `buttonActiveTextColor` | string | `#FFFFFFFF` | Active-state text/icon color |
+| `buttonActiveBackgroundColor` | string | `#AA000000` | Active-state background color |
+| `flashButtonTextColor` | string | `""` | Flash text/icon color override (normal) |
+| `flashButtonBackgroundColor` | string | `""` | Flash background override (normal) |
+| `flashButtonActiveTextColor` | string | `""` | Flash text/icon color override (active) |
+| `flashButtonActiveBackgroundColor` | string | `""` | Flash background override (active) |
+| `cancelButtonTextColor` | string | `""` | Cancel text/icon color override (normal) |
+| `cancelButtonBackgroundColor` | string | `""` | Cancel background override (normal) |
+| `cancelButtonActiveTextColor` | string | `""` | Cancel text/icon color override (active) |
+| `cancelButtonActiveBackgroundColor` | string | `""` | Cancel background override (active) |
 | `animateScanLine` | boolean | `true` | Enable animated scan line |
 | `scanLineColor` | string | `#00E676` | Scan line color |
 | `scanLineThickness` | number | `3` | Scan line thickness |
@@ -369,12 +407,17 @@ Native logs will include events for:
 - cancel button / cancel from JS
 - scanner close with success/error
 
-### Rounded scan-zone cutout and icon buttons
-
-Use these options to keep overlay cutout and frame visually consistent, and render circular icon buttons:
+### Header + SVG icon buttons
 
 ```js
 {
+  headerText: "Scan payment QR",
+  headerHeight: 60,
+  headerPadding: 12,
+  headerBackgroundColor: "#66000000",
+  headerTextColor: "#FFFFFF",
+  headerFontSize: 18,
+
   frameCornerRadius: 14,
   overlayColor: "#CC000000",
   buttonMode: "icon",
@@ -382,12 +425,26 @@ Use these options to keep overlay cutout and frame visually consistent, and rend
   buttonCornerRadius: 27,
   buttonSpacing: 14,
   buttonBottomOffset: 56,
-  buttonTextColor: "#FFFFFF",
+
+  // Base colors
+  buttonTextColor: "#F8FAFC",
   buttonBackgroundColor: "#A61E1E1E",
-  flashButtonIcon: "⚡",
-  cancelButtonIcon: "✕"
+  buttonActiveTextColor: "#0B1220",
+  buttonActiveBackgroundColor: "#E2E8F0",
+
+  // Per-button overrides
+  flashButtonBackgroundColor: "#AA0EA5E9",
+  flashButtonActiveBackgroundColor: "#FF38BDF8",
+  cancelButtonBackgroundColor: "#AA374151",
+  cancelButtonActiveBackgroundColor: "#FF6B7280",
+
+  // SVG can be inline XML or data:image/svg+xml,...
+  flashButtonSvg: "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
+  cancelButtonSvg: "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2' fill='none'/></svg>"
 }
 ```
+
+> Header font uses **Satoshi** when available on device; otherwise it falls back to system semibold font.
 
 ## Production recommendations
 
