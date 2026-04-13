@@ -487,7 +487,7 @@
 
 - (void)refreshFlashButtonAppearance {
     BOOL active = self.torchEnabled;
-    [self styleButton:self.flashButton isFlash:YES active:active];
+    [self applyFlashButtonVisualState:active];
     [self refreshSvgForButton:YES active:active];
 }
 
@@ -909,6 +909,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         [self debugLog:@"torch not available/supported"];
         self.torchEnabled = NO;
         self.torchBusy = NO;
+        [self applyFlashButtonVisualState:NO];
         return;
     }
 
@@ -918,6 +919,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         [self debugLog:[NSString stringWithFormat:@"lockForConfiguration failed: %@", error.localizedDescription ?: @"unknown"]];
         self.torchEnabled = previous;
         self.torchBusy = NO;
+        [self applyFlashButtonVisualState:self.torchEnabled];
         return;
     }
 
@@ -946,9 +948,14 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         [device unlockForConfiguration];
         self.torchBusy = NO;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self refreshFlashButtonAppearance];
+            [self applyFlashButtonVisualState:self.torchEnabled];
+            [self refreshSvgForButton:YES active:self.torchEnabled];
         });
     }
+}
+
+- (void)applyFlashButtonVisualState:(BOOL)isFlashActive {
+    [self styleButton:self.flashButton isFlash:YES active:isFlashActive];
 }
 
 - (BOOL)torchEnabledState {

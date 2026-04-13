@@ -408,6 +408,7 @@ public class ScannerActivity extends Activity {
         if (!isFlashAvailable()) {
             debugLog("toggleTorch ignored: flash not available");
             torchEnabled = false;
+            applyFlashButtonVisualState(false);
             return false;
         }
         setTorch(!torchEnabled);
@@ -419,7 +420,7 @@ public class ScannerActivity extends Activity {
         boolean previous = torchEnabled;
         if (!isFlashAvailable()) {
             torchEnabled = false;
-            refreshFlashButtonAppearance();
+            applyFlashButtonVisualState(false);
             debugLog("setTorch ignored: flash not available");
             return;
         }
@@ -431,7 +432,7 @@ public class ScannerActivity extends Activity {
             torchEnabled = previous;
             debugLog("setTorch failed: " + e.getMessage());
         }
-        refreshFlashButtonAppearance();
+        applyFlashButtonVisualState(torchEnabled);
     }
 
     public boolean isTorchEnabled() {
@@ -507,11 +508,15 @@ public class ScannerActivity extends Activity {
 
     private void refreshFlashButtonAppearance() {
         boolean active = torchEnabled;
-        styleButtonForState(flashButton, true, active);
+        applyFlashButtonVisualState(active);
         if (!hasSvg(true)) {
             flashButton.setText(getButtonLabel(true));
         }
         updateSvgButton(true, active);
+    }
+
+    private void applyFlashButtonVisualState(boolean isFlashActive) {
+        styleButtonForState(flashButton, true, isFlashActive);
     }
 
     private int getSafeAreaTopPx() {
