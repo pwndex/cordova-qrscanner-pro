@@ -403,7 +403,13 @@
     CGFloat radius = MAX(0.0, [self optFloat:@"buttonCornerRadius" defaultValue:(iconMode ? (size / 2.0) : 10.0)]);
     button.layer.cornerRadius = radius;
     button.clipsToBounds = YES;
-    button.titleLabel.font = [UIFont systemFontOfSize:(iconMode ? 23.0 : 15.0) weight:UIFontWeightSemibold];
+    button.titleLabel.font = [UIFont systemFontOfSize:[self buttonContentSize] weight:UIFontWeightSemibold];
+}
+
+- (CGFloat)buttonContentSize {
+    BOOL iconMode = [self isIconMode];
+    CGFloat fallback = iconMode ? 22.0 : 15.0;
+    return MAX(10.0, [self optFloat:@"buttonContentSize" defaultValue:fallback]);
 }
 
 - (void)applyBottomButtonLayout:(UIButton *)button isFlash:(BOOL)isFlash {
@@ -468,6 +474,7 @@
         return;
     }
     UIColor *tint = [self buttonTextColorIsFlash:isFlash active:active];
+    CGFloat iconSize = [self buttonContentSize];
     CGFloat r = 0, g = 0, b = 0, a = 1;
     [tint getRed:&r green:&g blue:&b alpha:&a];
     NSString *hex = [NSString stringWithFormat:@"#%02X%02X%02X", (int)(r * 255), (int)(g * 255), (int)(b * 255)];
@@ -478,18 +485,20 @@
         body = [NSString stringWithFormat:@"<img src=\"%@\" style=\"width:100%%;height:100%%;object-fit:contain;\"/>", svg];
     }
     NSString *html = [NSString stringWithFormat:@"<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>"
-                      "<style>html,body{margin:0;padding:0;background:transparent;width:100%%;height:100%%;display:flex;align-items:center;justify-content:center;color:%@;}svg{width:70%%;height:70%%;}</style></head><body>%@</body></html>", hex, body];
+                      "<style>html,body{margin:0;padding:0;background:transparent;width:100%%;height:100%%;display:flex;align-items:center;justify-content:center;color:%@;}svg,img{width:%.1fpx !important;height:%.1fpx !important;max-width:90%%;max-height:90%%;}</style></head><body>%@</body></html>", hex, iconSize, iconSize, body];
     [web loadHTMLString:html baseURL:nil];
 }
 
 - (void)refreshFlashButtonAppearance {
     BOOL active = self.flashPressed || self.torchEnabled;
     [self styleButton:self.flashButton isFlash:YES active:active];
+    self.flashButton.highlighted = active;
     [self refreshSvgForButton:YES active:active];
 }
 
 - (void)refreshCancelButtonAppearance {
     [self styleButton:self.cancelButton isFlash:NO active:NO];
+    self.cancelButton.highlighted = NO;
     [self refreshSvgForButton:NO active:NO];
 }
 

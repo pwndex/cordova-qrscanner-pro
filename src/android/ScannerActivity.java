@@ -241,9 +241,10 @@ public class ScannerActivity extends Activity {
         int buttonWidthDp = getButtonWidthDp();
         int radiusDp = Math.max(0, options.optInt("buttonCornerRadius", iconMode ? (buttonHeightDp / 2) : 10));
         String label = getButtonLabel(isFlashButton);
+        float contentSizeSp = getButtonContentSizeSp();
 
         button.setText(label);
-        button.setTextSize(iconMode ? 22f : 14f);
+        button.setTextSize(contentSizeSp);
         if (iconMode) {
             button.setMinWidth(0);
             button.setMinimumWidth(0);
@@ -309,6 +310,11 @@ public class ScannerActivity extends Activity {
             return Math.max(32, options.optInt("buttonSize", 52));
         }
         return Math.max(64, options.optInt("buttonWidth", 110));
+    }
+
+    private float getButtonContentSizeSp() {
+        float fallback = isIconMode() ? 22f : 15f;
+        return Math.max(10f, (float) options.optDouble("buttonContentSize", fallback));
     }
 
     private void startScanner() {
@@ -518,6 +524,7 @@ public class ScannerActivity extends Activity {
     private void refreshFlashButtonAppearance() {
         boolean active = flashPressed || torchEnabled;
         styleButtonForState(flashButton, true, active);
+        flashButton.setPressed(active);
         if (!hasSvg(true)) {
             flashButton.setText(getButtonLabel(true));
         }
@@ -601,6 +608,7 @@ public class ScannerActivity extends Activity {
     private void refreshCancelButtonAppearance() {
         boolean active = false;
         styleButtonForState(cancelButton, false, false);
+        cancelButton.setPressed(false);
         if (!hasSvg(false)) {
             cancelButton.setText(getButtonLabel(false));
         }
@@ -689,6 +697,7 @@ public class ScannerActivity extends Activity {
             return;
         }
         int tint = getButtonTextColor(isFlashButton, active);
+        int iconPx = dp(Math.max(10, Math.round(getButtonContentSizeSp())));
         String tintCss = String.format("#%06X", 0xFFFFFF & tint);
         String body;
         if (svg.trim().startsWith("<svg")) {
@@ -698,7 +707,7 @@ public class ScannerActivity extends Activity {
         }
         String html = "<html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>"
                 + "<style>html,body{margin:0;padding:0;background:transparent;width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:"
-                + tintCss + ";}svg{width:70%;height:70%;}</style></head><body>" + body + "</body></html>";
+                + tintCss + ";}svg,img{width:" + iconPx + "px !important;height:" + iconPx + "px !important;max-width:90%;max-height:90%;}</style></head><body>" + body + "</body></html>";
         String encoded = Base64.encodeToString(html.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
         svgView.loadData(encoded, "text/html; charset=utf-8", "base64");
     }

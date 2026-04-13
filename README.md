@@ -90,6 +90,7 @@ document.addEventListener("deviceready", function () {
       buttonSize: 54,
       buttonHeight: 54,
       buttonWidth: 120,
+      buttonContentSize: 20,
       buttonCornerRadius: 27,
       buttonSpacing: 14,
       buttonBottomOffset: 56,
@@ -151,6 +152,7 @@ document.addEventListener("deviceready", function () {
         showCancelButton: true,
         buttonMode: "icon",
         buttonSize: 54,
+        buttonContentSize: 20,
         buttonCornerRadius: 27,
         buttonSpacing: 14,
         buttonBottomOffset: 56,
@@ -214,6 +216,7 @@ document.addEventListener("deviceready", function () {
         showCancelButton: true,
         buttonMode: "icon",
         buttonSize: 54,
+        buttonContentSize: 20,
         buttonCornerRadius: 27,
         buttonSpacing: 14,
         buttonBottomOffset: 56,
@@ -388,6 +391,7 @@ All options are optional. Defaults are safe for production.
 | `buttonSize` | number | `52` | Base size for icon mode |
 | `buttonWidth` | number | `110` | Text mode button width |
 | `buttonHeight` | number | `52` | Button height in both modes |
+| `buttonContentSize` | number | `22` | Text/emoji/SVG icon size in button content |
 | `buttonCornerRadius` | number | `10` | Button corner radius |
 | `buttonSpacing` | number | `16` | Space between flash/cancel buttons |
 | `buttonBottomOffset` | number | `46` | Distance from bottom edge |
@@ -412,6 +416,7 @@ All options are optional. Defaults are safe for production.
 `active` state behavior:
 - Flash button: active while pressed and while torch is ON.
 - Cancel button: uses only normal colors.
+- Flash active colors are persisted through toggle state.
 
 ### Session Behavior and Feedback
 
@@ -472,6 +477,7 @@ Native logs will include events for:
   buttonSize: 54,
   buttonHeight: 54,
   buttonWidth: 120,
+  buttonContentSize: 20,
   buttonCornerRadius: 27,
   buttonSpacing: 14,
   buttonBottomOffset: 56,

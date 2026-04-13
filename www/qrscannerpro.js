@@ -55,6 +55,7 @@ QrScannerPro.prototype.getDefaults = function getDefaults() {
     buttonHeight: 52,
     buttonWidth: 110,
     buttonCornerRadius: 10,
+    buttonContentSize: 22,
     buttonSpacing: 16,
     buttonBottomOffset: 46,
     flashButtonText: "Flash",
