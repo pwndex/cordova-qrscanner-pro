@@ -142,7 +142,6 @@
 @property (nonatomic, assign) CFTimeInterval lastVisionScanTime;
 @property (nonatomic, assign) CGImagePropertyOrientation visionOrientation;
 @property (nonatomic, assign) BOOL flashPressed;
-@property (nonatomic, assign) BOOL cancelPressed;
 @end
 
 @implementation QRScannerViewController
@@ -275,7 +274,7 @@
                                  | UIViewAutoresizingFlexibleBottomMargin;
     [self.view addSubview:self.loader];
 
-    self.flashButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.flashButton = [UIButton buttonWithType:UIButtonTypeCustom];
     [self styleButton:self.flashButton isFlash:YES active:NO];
     [self applyBottomButtonLayout:self.flashButton isFlash:YES];
     [self.flashButton addTarget:self action:@selector(onFlashTap) forControlEvents:UIControlEventTouchUpInside];
@@ -285,12 +284,10 @@
     [self.view addSubview:self.flashButton];
     [self attachSvgIfNeeded:YES];
 
-    self.cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.cancelButton = [UIButton buttonWithType:UIButtonTypeCustom];
     [self styleButton:self.cancelButton isFlash:NO active:NO];
     [self applyBottomButtonLayout:self.cancelButton isFlash:NO];
     [self.cancelButton addTarget:self action:@selector(onCancelTap) forControlEvents:UIControlEventTouchUpInside];
-    [self.cancelButton addTarget:self action:@selector(onCancelTouchDown) forControlEvents:UIControlEventTouchDown];
-    [self.cancelButton addTarget:self action:@selector(onCancelTouchUp) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
     self.cancelButton.hidden = ![self optBool:@"showCancelButton" defaultValue:YES];
     [self.view addSubview:self.cancelButton];
     [self attachSvgIfNeeded:NO];
@@ -365,25 +362,33 @@
 }
 
 - (UIColor *)buttonTextColorIsFlash:(BOOL)isFlash active:(BOOL)active {
-    NSString *globalKey = active ? @"buttonActiveTextColor" : @"buttonTextColor";
-    NSString *buttonKey = [NSString stringWithFormat:@"%@%@", isFlash ? @"flashButton" : @"cancelButton", active ? @"ActiveTextColor" : @"TextColor"];
-    NSString *globalColor = [self optString:globalKey defaultValue:@"#FFFFFFFF"];
+    NSString *globalColor = [self optString:@"buttonTextColor" defaultValue:@"#FFFFFFFF"];
+    NSString *buttonKey;
+    if (isFlash) {
+        buttonKey = active ? @"flashButtonActiveTextColor" : @"flashButtonTextColor";
+    } else {
+        buttonKey = @"cancelButtonTextColor";
+    }
     NSString *override = [self optString:buttonKey defaultValue:@""];
     NSString *resolved = override.length > 0 ? override : globalColor;
     return [self colorFromHex:resolved fallback:[UIColor whiteColor]];
 }
 
 - (UIColor *)buttonBackgroundColorIsFlash:(BOOL)isFlash active:(BOOL)active {
-    NSString *globalKey = active ? @"buttonActiveBackgroundColor" : @"buttonBackgroundColor";
-    NSString *buttonKey = [NSString stringWithFormat:@"%@%@", isFlash ? @"flashButton" : @"cancelButton", active ? @"ActiveBackgroundColor" : @"BackgroundColor"];
-    NSString *globalColor = [self optString:globalKey defaultValue:(active ? @"#AA000000" : @"#66000000")];
+    NSString *globalColor = [self optString:@"buttonBackgroundColor" defaultValue:@"#66000000"];
+    NSString *buttonKey;
+    if (isFlash) {
+        buttonKey = active ? @"flashButtonActiveBackgroundColor" : @"flashButtonBackgroundColor";
+    } else {
+        buttonKey = @"cancelButtonBackgroundColor";
+    }
     NSString *override = [self optString:buttonKey defaultValue:@""];
     NSString *resolved = override.length > 0 ? override : globalColor;
     return [self colorFromHex:resolved fallback:[UIColor colorWithWhite:0 alpha:(active ? 0.67 : 0.4)]];
 }
 
 - (void)styleButton:(UIButton *)button isFlash:(BOOL)isFlash active:(BOOL)active {
-    NSString *title = (isFlash ? [self buttonLabelForFlash] : [self buttonLabelForCancel]);
+    NSString *title = [self hasSvgForButton:isFlash] ? @"" : (isFlash ? [self buttonLabelForFlash] : [self buttonLabelForCancel]);
     [button setTitle:title forState:UIControlStateNormal];
     [button setTitle:title forState:UIControlStateHighlighted];
     [button setTitle:title forState:UIControlStateSelected];
@@ -403,30 +408,33 @@
 
 - (void)applyBottomButtonLayout:(UIButton *)button isFlash:(BOOL)isFlash {
     BOOL iconMode = [self isIconMode];
-    CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
+    CGFloat buttonHeight = MAX(32.0, [self optFloat:@"buttonHeight" defaultValue:[self optFloat:@"buttonSize" defaultValue:52]]);
+    CGFloat buttonWidth = iconMode
+        ? MAX(32.0, [self optFloat:@"buttonSize" defaultValue:52])
+        : MAX(64.0, [self optFloat:@"buttonWidth" defaultValue:110]);
     CGFloat spacing = MAX(8.0, [self optFloat:@"buttonSpacing" defaultValue:16]);
     CGFloat bottomOffset = MAX(8.0, [self optFloat:@"buttonBottomOffset" defaultValue:46]);
-    CGFloat textWidth = MAX(96.0, [self optFloat:@"buttonTextWidth" defaultValue:110]);
-    CGFloat width = iconMode ? size : textWidth;
-    CGFloat halfGap = spacing / 2.0 + width / 2.0;
-    CGFloat centerX = self.view.bounds.size.width / 2.0 + (isFlash ? -halfGap : halfGap);
-    CGFloat originX = centerX - width / 2.0;
-    CGFloat originY = self.view.bounds.size.height - bottomOffset - size;
+    CGFloat halfGap = spacing / 2.0 + buttonWidth / 2.0;
+    CGRect contentFrame = [self scannerContentFrame];
+    CGFloat centerX = CGRectGetMidX(contentFrame) + (isFlash ? -halfGap : halfGap);
+    CGFloat originX = centerX - buttonWidth / 2.0;
+    CGFloat originY = CGRectGetMaxY(contentFrame) - bottomOffset - buttonHeight - self.view.safeAreaInsets.bottom;
 
-    button.frame = CGRectMake(originX, originY, width, size);
+    button.frame = CGRectMake(originX, originY, buttonWidth, buttonHeight);
     button.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
 }
 
-- (NSString *)buttonSvgIsFlash:(BOOL)isFlash active:(BOOL)active {
-    NSString *normalKey = isFlash ? @"flashButtonSvg" : @"cancelButtonSvg";
-    NSString *activeKey = isFlash ? @"flashButtonActiveSvg" : @"cancelButtonActiveSvg";
-    NSString *normal = [self optString:normalKey defaultValue:@""];
-    NSString *activeSvg = [self optString:activeKey defaultValue:@""];
-    return (active && activeSvg.length > 0) ? activeSvg : normal;
+- (NSString *)buttonIconValue:(BOOL)isFlash {
+    return [self optString:(isFlash ? @"flashButtonIcon" : @"cancelButtonIcon") defaultValue:(isFlash ? @"⚡" : @"✕")];
+}
+
+- (BOOL)isSvgValue:(NSString *)value {
+    NSString *trimmed = [[value ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString];
+    return [trimmed hasPrefix:@"<svg"] || [trimmed hasPrefix:@"data:image/svg"] || [trimmed containsString:@".svg"];
 }
 
 - (BOOL)hasSvgForButton:(BOOL)isFlash {
-    return [self isIconMode] && [self optString:(isFlash ? @"flashButtonSvg" : @"cancelButtonSvg") defaultValue:@""].length > 0;
+    return [self isIconMode] && [self isSvgValue:[self buttonIconValue:isFlash]];
 }
 
 - (void)attachSvgIfNeeded:(BOOL)isFlash {
@@ -455,7 +463,7 @@
     if (!web) {
         return;
     }
-    NSString *svg = [self buttonSvgIsFlash:isFlash active:active];
+    NSString *svg = [self buttonIconValue:isFlash];
     if (svg.length == 0) {
         return;
     }
@@ -481,9 +489,8 @@
 }
 
 - (void)refreshCancelButtonAppearance {
-    BOOL active = self.cancelPressed;
-    [self styleButton:self.cancelButton isFlash:NO active:active];
-    [self refreshSvgForButton:NO active:active];
+    [self styleButton:self.cancelButton isFlash:NO active:NO];
+    [self refreshSvgForButton:NO active:NO];
 }
 
 - (void)setupCamera {
@@ -865,19 +872,8 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 
 - (void)onCancelTap {
     [self debugLog:@"cancel button tapped"];
-    self.cancelPressed = NO;
     [self refreshCancelButtonAppearance];
     [self handleCancel:@"Scan cancelled by user."];
-}
-
-- (void)onCancelTouchDown {
-    self.cancelPressed = YES;
-    [self refreshCancelButtonAppearance];
-}
-
-- (void)onCancelTouchUp {
-    self.cancelPressed = NO;
-    [self refreshCancelButtonAppearance];
 }
 
 - (void)handleCancel:(NSString *)message {

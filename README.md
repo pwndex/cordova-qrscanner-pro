@@ -17,7 +17,7 @@ Minimal, production-ready, highly customizable QR scanner plugin for Apache Cord
 - [Result object](#result-object)
 - [Configuration options](#configuration-options)
 - [Debug mode](#debug-mode)
-- [Header + SVG icon buttons](#header--svg-icon-buttons)
+- [Header + icon buttons](#header--icon-buttons)
 - [Production recommendations](#production-recommendations)
 - [Security notes](#security-notes)
 - [Troubleshooting](#troubleshooting)
@@ -88,23 +88,23 @@ document.addEventListener("deviceready", function () {
       headerFontSize: 17,
       buttonMode: "icon",
       buttonSize: 54,
+      buttonHeight: 54,
+      buttonWidth: 120,
       buttonCornerRadius: 27,
       buttonSpacing: 14,
       buttonBottomOffset: 56,
-      flashButtonSvg:
+      flashButtonIcon:
         "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
-      flashButtonActiveSvg:
-        "<svg viewBox='0 0 24 24'><path d='M12 2l-6 11h5l-1 9 8-12h-5V2z'/></svg>",
-      cancelButtonSvg:
+      cancelButtonIcon:
         "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2.2' fill='none' stroke-linecap='round'/></svg>",
       buttonTextColor: "#FFFFFF",
       buttonBackgroundColor: "#80111111",
-      buttonActiveTextColor: "#111111",
-      buttonActiveBackgroundColor: "#FFFFFF",
       flashButtonBackgroundColor: "#AA0057FF",
+      flashButtonTextColor: "#FFFFFF",
+      flashButtonActiveTextColor: "#111111",
       flashButtonActiveBackgroundColor: "#FF2F7BFF",
       cancelButtonBackgroundColor: "#AA2A2A2A",
-      cancelButtonActiveBackgroundColor: "#FF505050",
+      cancelButtonTextColor: "#FFFFFF",
       animateScanLine: true
     },
     function onSuccess(result) {
@@ -385,19 +385,16 @@ All options are optional. Defaults are safe for production.
 | `showFlashButton` | boolean | `true` | Show Flash button |
 | `showCancelButton` | boolean | `true` | Show Cancel button |
 | `buttonMode` | string | `text` | `text` or `icon` |
-| `buttonSize` | number | `52` | Button height; icon mode uses square |
-| `buttonTextWidth` | number | `110` | Text mode button width |
+| `buttonSize` | number | `52` | Base size for icon mode |
+| `buttonWidth` | number | `110` | Text mode button width |
+| `buttonHeight` | number | `52` | Button height in both modes |
 | `buttonCornerRadius` | number | `10` | Button corner radius |
 | `buttonSpacing` | number | `16` | Space between flash/cancel buttons |
 | `buttonBottomOffset` | number | `46` | Distance from bottom edge |
 | `flashButtonText` | string | `Flash` | Flash button label |
-| `flashButtonIcon` | string | `⚡` | Flash icon in `buttonMode: "icon"` |
-| `flashButtonSvg` | string | `""` | Inline SVG or SVG data URL for flash button (icon mode) |
-| `flashButtonActiveSvg` | string | `""` | Active-state SVG for flash button (icon mode) |
+| `flashButtonIcon` | string | `⚡` | Icon content in `buttonMode: "icon"` (emoji/text/inline SVG/data SVG URL) |
 | `cancelButtonText` | string | `Cancel` | Cancel button label |
-| `cancelButtonIcon` | string | `✕` | Cancel icon in `buttonMode: "icon"` |
-| `cancelButtonSvg` | string | `""` | Inline SVG or SVG data URL for cancel button (icon mode) |
-| `cancelButtonActiveSvg` | string | `""` | Active-state SVG for cancel button (icon mode) |
+| `cancelButtonIcon` | string | `✕` | Icon content in `buttonMode: "icon"` (emoji/text/inline SVG/data SVG URL) |
 
 ### Buttons: Colors (Global + Per-Button Overrides)
 
@@ -405,20 +402,16 @@ All options are optional. Defaults are safe for production.
 |---|---|---|---|
 | `buttonTextColor` | string | `#FFFFFFFF` | Button text/icon color (normal) |
 | `buttonBackgroundColor` | string | `#66000000` | Button background color (normal) |
-| `buttonActiveTextColor` | string | `#FFFFFFFF` | Button text/icon color (active) |
-| `buttonActiveBackgroundColor` | string | `#AA000000` | Button background color (active) |
 | `flashButtonTextColor` | string | `""` | Flash text/icon color override (normal) |
 | `flashButtonBackgroundColor` | string | `""` | Flash background override (normal) |
 | `flashButtonActiveTextColor` | string | `""` | Flash text/icon color override (active) |
 | `flashButtonActiveBackgroundColor` | string | `""` | Flash background override (active) |
 | `cancelButtonTextColor` | string | `""` | Cancel text/icon color override (normal) |
 | `cancelButtonBackgroundColor` | string | `""` | Cancel background override (normal) |
-| `cancelButtonActiveTextColor` | string | `""` | Cancel text/icon color override (active) |
-| `cancelButtonActiveBackgroundColor` | string | `""` | Cancel background override (active) |
 
 `active` state behavior:
 - Flash button: active while pressed and while torch is ON.
-- Cancel button: active while pressed.
+- Cancel button: uses only normal colors.
 
 ### Session Behavior and Feedback
 
@@ -462,7 +455,7 @@ Native logs will include events for:
 - cancel button / cancel from JS
 - scanner close with success/error
 
-### Header + SVG icon buttons
+### Header + icon buttons
 
 ```js
 {
@@ -477,25 +470,29 @@ Native logs will include events for:
   overlayColor: "#CC000000",
   buttonMode: "icon",
   buttonSize: 54,
+  buttonHeight: 54,
+  buttonWidth: 120,
   buttonCornerRadius: 27,
   buttonSpacing: 14,
   buttonBottomOffset: 56,
 
-  // Base colors
+  // Base colors (used by both buttons by default)
   buttonTextColor: "#F8FAFC",
   buttonBackgroundColor: "#A61E1E1E",
-  buttonActiveTextColor: "#0B1220",
-  buttonActiveBackgroundColor: "#E2E8F0",
 
-  // Per-button overrides
+  // Flash normal + active
+  flashButtonTextColor: "#F8FAFC",
   flashButtonBackgroundColor: "#AA0EA5E9",
+  flashButtonActiveTextColor: "#0B1220",
   flashButtonActiveBackgroundColor: "#FF38BDF8",
-  cancelButtonBackgroundColor: "#AA374151",
-  cancelButtonActiveBackgroundColor: "#FF6B7280",
 
-  // SVG can be inline XML or data:image/svg+xml,...
-  flashButtonSvg: "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
-  cancelButtonSvg: "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2' fill='none'/></svg>"
+  // Cancel normal
+  cancelButtonTextColor: "#FFFFFF",
+  cancelButtonBackgroundColor: "#AA374151",
+
+  // Icon value can be emoji/text or inline SVG / data:image/svg+xml,...
+  flashButtonIcon: "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
+  cancelButtonIcon: "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2' fill='none'/></svg>"
 }
 ```
 
