@@ -48,6 +48,7 @@ QrScannerPro.prototype.getDefaults = function getDefaults() {
     headerHeight: 56,
     headerPadding: 12,
     headerBackgroundColor: "#00000000",
+    safeAreaColor: "",
     headerTextColor: "#FFFFFFFF",
     headerFontSize: 18,
     buttonMode: "text",

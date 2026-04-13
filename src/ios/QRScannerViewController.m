@@ -130,6 +130,7 @@
 @property (nonatomic, strong) UIButton *cancelButton;
 @property (nonatomic, strong) WKWebView *flashSvgView;
 @property (nonatomic, strong) WKWebView *cancelSvgView;
+@property (nonatomic, strong) UIView *safeAreaTopView;
 @property (nonatomic, strong) UIView *headerView;
 @property (nonatomic, strong) UILabel *headerLabel;
 @property (nonatomic, strong) QROverlayView *overlayView;
@@ -170,6 +171,7 @@
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    [self layoutSafeAreaOverlay];
     CGRect contentFrame = [self scannerContentFrame];
     self.previewLayer.frame = contentFrame;
     self.overlayView.frame = contentFrame;
@@ -256,6 +258,10 @@
     self.overlayView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:self.overlayView];
 
+    self.safeAreaTopView = [[UIView alloc] initWithFrame:CGRectZero];
+    self.safeAreaTopView.hidden = YES;
+    [self.view addSubview:self.safeAreaTopView];
+
     [self buildHeader];
 
     UIActivityIndicatorViewStyle loaderStyle = UIActivityIndicatorViewStyleWhiteLarge;
@@ -290,6 +296,29 @@
     [self attachSvgIfNeeded:NO];
     [self refreshFlashButtonAppearance];
     [self refreshCancelButtonAppearance];
+}
+
+- (NSString *)safeAreaColorValue {
+    id value = self.options[@"safeAreaColor"];
+    if ([value isKindOfClass:[NSString class]]) {
+        return [(NSString *)value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    }
+    return @"";
+}
+
+- (void)layoutSafeAreaOverlay {
+    if (!self.safeAreaTopView) {
+        return;
+    }
+    NSString *safeAreaColor = [self safeAreaColorValue];
+    CGFloat safeTop = self.view.safeAreaInsets.top;
+    if (safeAreaColor.length == 0 || safeTop <= 0.0) {
+        self.safeAreaTopView.hidden = YES;
+        return;
+    }
+    self.safeAreaTopView.hidden = NO;
+    self.safeAreaTopView.backgroundColor = [self colorFromHex:safeAreaColor fallback:[UIColor clearColor]];
+    self.safeAreaTopView.frame = CGRectMake(0, 0, self.view.bounds.size.width, safeTop);
 }
 
 - (void)buildHeader {

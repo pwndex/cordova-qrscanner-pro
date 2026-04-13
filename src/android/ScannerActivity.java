@@ -66,6 +66,7 @@ public class ScannerActivity extends Activity {
     private DecoratedBarcodeView barcodeView;
     private ProgressBar loader;
     private OverlayView overlayView;
+    private View safeAreaTopView;
     private TextView headerTextView;
     private FrameLayout flashButtonContainer;
     private FrameLayout cancelButtonContainer;
@@ -83,6 +84,7 @@ public class ScannerActivity extends Activity {
     private String debugTag = "QrScannerPro-Android";
     private long sessionToken;
     private int appliedSafeTopPx = -1;
+    private String appliedSafeAreaColor = null;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -134,6 +136,16 @@ public class ScannerActivity extends Activity {
 
         overlayView = new OverlayView(this, options);
         root.addView(overlayView);
+
+        safeAreaTopView = new View(this);
+        FrameLayout.LayoutParams safeAreaParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0
+        );
+        safeAreaParams.gravity = Gravity.TOP;
+        safeAreaTopView.setLayoutParams(safeAreaParams);
+        safeAreaTopView.setVisibility(View.GONE);
+        root.addView(safeAreaTopView);
 
         headerTextView = buildHeaderView();
         if (headerTextView != null) {
@@ -510,7 +522,18 @@ public class ScannerActivity extends Activity {
     }
 
     private void applyFlashButtonVisualState(boolean isFlashActive) {
-        styleButtonForState(flashButton, true, isFlashActive);
+        int textColor = getFlashTextColor(isFlashActive);
+        int bgColor = getFlashBackgroundColor(isFlashActive);
+        flashButton.setTextColor(textColor);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        int buttonSizeDp = Math.max(36, options.optInt("buttonSize", 52));
+        int radiusDp = Math.max(0, options.optInt("buttonCornerRadius", isIconMode() ? (buttonSizeDp / 2) : 10));
+        bg.setCornerRadius(dp(radiusDp));
+        bg.setColor(bgColor);
+        flashButton.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            flashButton.setBackgroundTintList(null);
+        }
     }
 
     private void setFlashVisualState(boolean isFlashActive) {
@@ -519,6 +542,32 @@ public class ScannerActivity extends Activity {
             flashButton.setText(getButtonLabel(true));
         }
         updateSvgButton(true, isFlashActive);
+    }
+
+    private int getFlashTextColor(boolean active) {
+        String global = options.optString("buttonTextColor", "#FFFFFFFF");
+        String normal = options.optString("flashButtonTextColor", "");
+        String activeColor = options.optString("flashButtonActiveTextColor", "");
+        String selected;
+        if (active) {
+            selected = !activeColor.isEmpty() ? activeColor : (!normal.isEmpty() ? normal : global);
+        } else {
+            selected = !normal.isEmpty() ? normal : global;
+        }
+        return parseColor(selected, Color.WHITE);
+    }
+
+    private int getFlashBackgroundColor(boolean active) {
+        String global = options.optString("buttonBackgroundColor", "#66000000");
+        String normal = options.optString("flashButtonBackgroundColor", "");
+        String activeColor = options.optString("flashButtonActiveBackgroundColor", "");
+        String selected;
+        if (active) {
+            selected = !activeColor.isEmpty() ? activeColor : (!normal.isEmpty() ? normal : global);
+        } else {
+            selected = !normal.isEmpty() ? normal : global;
+        }
+        return parseColor(selected, Color.argb(102, 0, 0, 0));
     }
 
     private int getSafeAreaTopPx() {
@@ -559,10 +608,15 @@ public class ScannerActivity extends Activity {
 
     private void applyTopSafeAreaInsets() {
         int safeTopPx = getSafeAreaTopPx();
-        if (safeTopPx == appliedSafeTopPx) {
+        String safeAreaColor = options.optString("safeAreaColor", "").trim();
+        boolean sameColor = (appliedSafeAreaColor == null && safeAreaColor.isEmpty())
+                || (appliedSafeAreaColor != null && appliedSafeAreaColor.equals(safeAreaColor));
+        if (safeTopPx == appliedSafeTopPx && sameColor) {
             return;
         }
         appliedSafeTopPx = safeTopPx;
+        appliedSafeAreaColor = safeAreaColor.isEmpty() ? null : safeAreaColor;
+        applySafeAreaTopOverlay(safeTopPx, safeAreaColor);
         applyTopMargin(barcodeView, safeTopPx);
         applyTopMargin(overlayView, safeTopPx);
         if (headerTextView != null) {
@@ -577,6 +631,23 @@ public class ScannerActivity extends Activity {
         if (cancelButtonContainer != null && cancelButtonContainer.getLayoutParams() instanceof FrameLayout.LayoutParams) {
             applyBottomButtonLayout((FrameLayout.LayoutParams) cancelButtonContainer.getLayoutParams(), false);
         }
+    }
+
+    private void applySafeAreaTopOverlay(int safeTopPx, String safeAreaColor) {
+        if (safeAreaTopView == null || !(safeAreaTopView.getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) safeAreaTopView.getLayoutParams();
+        if (lp.height != safeTopPx) {
+            lp.height = Math.max(0, safeTopPx);
+            safeAreaTopView.setLayoutParams(lp);
+        }
+        if (safeTopPx <= 0 || safeAreaColor == null || safeAreaColor.isEmpty()) {
+            safeAreaTopView.setVisibility(View.GONE);
+            return;
+        }
+        safeAreaTopView.setVisibility(View.VISIBLE);
+        safeAreaTopView.setBackgroundColor(parseColor(safeAreaColor, Color.TRANSPARENT));
     }
 
     private void applyTopMargin(View view, int topMarginPx) {

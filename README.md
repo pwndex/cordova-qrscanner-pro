@@ -83,6 +83,7 @@ document.addEventListener("deviceready", function () {
       headerText: "Align QR in frame",
       headerHeight: 58,
       headerPadding: 12,
+      safeAreaColor: "#101214",
       headerBackgroundColor: "#66000000",
       headerTextColor: "#FFFFFF",
       headerFontSize: 17,
@@ -377,6 +378,7 @@ All options are optional. Defaults are safe for production.
 | `headerText` | string | `""` | Top centered header text (empty = hidden) |
 | `headerHeight` | number | `56` | Header content height (dp/pt), rendered below top safe area |
 | `headerPadding` | number | `12` | Inner text padding inside header (dp/pt) |
+| `safeAreaColor` | string | `""` | Top safe-area overlay color. Empty keeps app/theme default background |
 | `headerBackgroundColor` | string | `#00000000` | Header background color only (safe area keeps app/default background) |
 | `headerTextColor` | string | `#FFFFFFFF` | Header text color |
 | `headerFontSize` | number | `18` | Header text size |
@@ -467,6 +469,7 @@ Native logs will include events for:
   headerText: "Scan payment QR",
   headerHeight: 60,
   headerPadding: 12,
+  safeAreaColor: "#101214",
   headerBackgroundColor: "#66000000",
   headerTextColor: "#FFFFFF",
   headerFontSize: 18,
