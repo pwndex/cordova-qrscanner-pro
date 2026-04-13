@@ -82,7 +82,6 @@ public class ScannerActivity extends Activity {
     private boolean debugEnabled = false;
     private String debugTag = "QrScannerPro-Android";
     private long sessionToken;
-    private boolean flashPressed = false;
     private int appliedSafeTopPx = -1;
 
     @Override
@@ -164,21 +163,6 @@ public class ScannerActivity extends Activity {
         flashButton.setOnClickListener(v -> {
             toggleTorch();
             refreshFlashButtonAppearance();
-        });
-        flashButton.setOnTouchListener((v, event) -> {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    flashPressed = true;
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    flashPressed = false;
-                    break;
-                default:
-                    break;
-            }
-            refreshFlashButtonAppearance();
-            return false;
         });
         flashButtonContainer.setVisibility(options.optBoolean("showFlashButton", true) ? View.VISIBLE : View.GONE);
         root.addView(flashButtonContainer);
@@ -432,6 +416,7 @@ public class ScannerActivity extends Activity {
     }
 
     public void setTorch(boolean enabled) {
+        boolean previous = torchEnabled;
         if (!isFlashAvailable()) {
             torchEnabled = false;
             refreshFlashButtonAppearance();
@@ -443,7 +428,7 @@ public class ScannerActivity extends Activity {
             torchEnabled = enabled;
             debugLog("setTorch=" + enabled);
         } catch (RuntimeException e) {
-            torchEnabled = false;
+            torchEnabled = previous;
             debugLog("setTorch failed: " + e.getMessage());
         }
         refreshFlashButtonAppearance();
@@ -522,7 +507,7 @@ public class ScannerActivity extends Activity {
     }
 
     private void refreshFlashButtonAppearance() {
-        boolean active = flashPressed || torchEnabled;
+        boolean active = torchEnabled;
         styleButtonForState(flashButton, true, active);
         flashButton.setPressed(active);
         if (!hasSvg(true)) {
@@ -637,17 +622,11 @@ public class ScannerActivity extends Activity {
             svgView.setOnTouchListener((v, event) -> {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
-                        flashPressed = true;
-                        refreshFlashButtonAppearance();
                         return true;
                     case MotionEvent.ACTION_UP:
-                        flashPressed = false;
-                        refreshFlashButtonAppearance();
                         flashButton.performClick();
                         return true;
                     case MotionEvent.ACTION_CANCEL:
-                        flashPressed = false;
-                        refreshFlashButtonAppearance();
                         return true;
                     default:
                         return true;

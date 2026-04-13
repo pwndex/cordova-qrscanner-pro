@@ -141,7 +141,6 @@
 @property (nonatomic, strong) dispatch_queue_t visionQueue;
 @property (nonatomic, assign) CFTimeInterval lastVisionScanTime;
 @property (nonatomic, assign) CGImagePropertyOrientation visionOrientation;
-@property (nonatomic, assign) BOOL flashPressed;
 @end
 
 @implementation QRScannerViewController
@@ -278,8 +277,6 @@
     [self styleButton:self.flashButton isFlash:YES active:NO];
     [self applyBottomButtonLayout:self.flashButton isFlash:YES];
     [self.flashButton addTarget:self action:@selector(onFlashTap) forControlEvents:UIControlEventTouchUpInside];
-    [self.flashButton addTarget:self action:@selector(onFlashTouchDown) forControlEvents:UIControlEventTouchDown];
-    [self.flashButton addTarget:self action:@selector(onFlashTouchUp) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
     self.flashButton.hidden = ![self optBool:@"showFlashButton" defaultValue:YES];
     [self.view addSubview:self.flashButton];
     [self attachSvgIfNeeded:YES];
@@ -490,7 +487,7 @@
 }
 
 - (void)refreshFlashButtonAppearance {
-    BOOL active = self.flashPressed || self.torchEnabled;
+    BOOL active = self.torchEnabled;
     [self styleButton:self.flashButton isFlash:YES active:active];
     self.flashButton.highlighted = active;
     [self refreshSvgForButton:YES active:active];
@@ -869,16 +866,6 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     [self refreshFlashButtonAppearance];
 }
 
-- (void)onFlashTouchDown {
-    self.flashPressed = YES;
-    [self refreshFlashButtonAppearance];
-}
-
-- (void)onFlashTouchUp {
-    self.flashPressed = NO;
-    [self refreshFlashButtonAppearance];
-}
-
 - (void)onCancelTap {
     [self debugLog:@"cancel button tapped"];
     [self refreshCancelButtonAppearance];
@@ -918,6 +905,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         return;
     }
     self.torchBusy = YES;
+    BOOL previous = self.torchEnabled;
 
     AVCaptureDevice *device = self.videoInput.device;
     if (!device || ![device hasTorch] || ![device isTorchModeSupported:AVCaptureTorchModeOn]) {
@@ -931,7 +919,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     BOOL locked = [device lockForConfiguration:&error];
     if (!locked) {
         [self debugLog:[NSString stringWithFormat:@"lockForConfiguration failed: %@", error.localizedDescription ?: @"unknown"]];
-        self.torchEnabled = (device.torchMode == AVCaptureTorchModeOn);
+        self.torchEnabled = previous;
         self.torchBusy = NO;
         return;
     }
@@ -952,6 +940,11 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         }
         self.torchEnabled = (device.torchMode == AVCaptureTorchModeOn);
         [self debugLog:[NSString stringWithFormat:@"torch state now %@", self.torchEnabled ? @"ON" : @"OFF"]];
+        if (enabled) {
+            self.torchEnabled = YES;
+        } else if (!enabled) {
+            self.torchEnabled = NO;
+        }
     } @finally {
         [device unlockForConfiguration];
         self.torchBusy = NO;
