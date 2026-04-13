@@ -325,8 +325,13 @@
     }
     CGFloat height = MAX(32.0, [self optFloat:@"headerHeight" defaultValue:56.0]);
     CGFloat padding = MAX(0.0, [self optFloat:@"headerPadding" defaultValue:12.0]);
-    self.headerView.frame = CGRectMake(0, 0, self.view.bounds.size.width, height);
-    self.headerLabel.frame = CGRectInset(self.headerView.bounds, padding, padding);
+    CGFloat safeTop = self.view.safeAreaInsets.top;
+    self.headerView.frame = CGRectMake(0, 0, self.view.bounds.size.width, height + safeTop);
+    CGFloat labelX = padding;
+    CGFloat labelY = safeTop + padding;
+    CGFloat labelW = MAX(0.0, self.headerView.bounds.size.width - padding * 2.0);
+    CGFloat labelH = MAX(0.0, height - padding * 2.0);
+    self.headerLabel.frame = CGRectMake(labelX, labelY, labelW, labelH);
 }
 
 - (BOOL)isIconMode {
@@ -335,7 +340,7 @@
 
 - (NSString *)buttonLabelForFlash {
     if ([self isIconMode]) {
-        return self.torchEnabled ? @"💡" : [self optString:@"flashButtonIcon" defaultValue:@"⚡"];
+        return [self optString:@"flashButtonIcon" defaultValue:@"⚡"];
     }
     NSString *base = [self optString:@"flashButtonText" defaultValue:@"Flash"];
     return self.torchEnabled ? [base stringByAppendingString:@" ON"] : base;
@@ -367,9 +372,15 @@
 }
 
 - (void)styleButton:(UIButton *)button isFlash:(BOOL)isFlash active:(BOOL)active {
-    [button setTitle:(isFlash ? [self buttonLabelForFlash] : [self buttonLabelForCancel]) forState:UIControlStateNormal];
+    NSString *title = (isFlash ? [self buttonLabelForFlash] : [self buttonLabelForCancel]);
+    [button setTitle:title forState:UIControlStateNormal];
+    [button setTitle:title forState:UIControlStateHighlighted];
+    [button setTitle:title forState:UIControlStateSelected];
     BOOL iconMode = [self isIconMode];
-    [button setTitleColor:[self buttonTextColorIsFlash:isFlash active:active] forState:UIControlStateNormal];
+    UIColor *titleColor = [self buttonTextColorIsFlash:isFlash active:active];
+    [button setTitleColor:titleColor forState:UIControlStateNormal];
+    [button setTitleColor:titleColor forState:UIControlStateHighlighted];
+    [button setTitleColor:titleColor forState:UIControlStateSelected];
     button.backgroundColor = [self buttonBackgroundColorIsFlash:isFlash active:active];
     CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
     CGFloat radius = MAX(0.0, [self optFloat:@"buttonCornerRadius" defaultValue:(iconMode ? (size / 2.0) : 10.0)]);

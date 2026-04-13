@@ -372,9 +372,9 @@ All options are optional. Defaults are safe for production.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `headerText` | string | `""` | Top centered header text (empty = hidden) |
-| `headerHeight` | number | `56` | Header height (dp/pt) |
+| `headerHeight` | number | `56` | Visible header content height below safe area (dp/pt) |
 | `headerPadding` | number | `12` | Inner text padding inside header (dp/pt) |
-| `headerBackgroundColor` | string | `#00000000` | Header background color (supports transparent) |
+| `headerBackgroundColor` | string | `#00000000` | Header + top safe area background color (supports transparent) |
 | `headerTextColor` | string | `#FFFFFFFF` | Header text color |
 | `headerFontSize` | number | `18` | Header text size |
 
@@ -415,6 +415,10 @@ All options are optional. Defaults are safe for production.
 | `cancelButtonBackgroundColor` | string | `""` | Cancel background override (normal) |
 | `cancelButtonActiveTextColor` | string | `""` | Cancel text/icon color override (active) |
 | `cancelButtonActiveBackgroundColor` | string | `""` | Cancel background override (active) |
+
+`active` state behavior:
+- Flash button: active while pressed and while torch is ON.
+- Cancel button: active while pressed.
 
 ### Session Behavior and Feedback
 

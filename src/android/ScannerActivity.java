@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Build;
 import android.graphics.Typeface;
+import android.view.WindowInsets;
 import android.util.Base64;
 import android.util.Log;
 import android.util.Size;
@@ -227,15 +228,16 @@ public class ScannerActivity extends Activity {
         header.setGravity(Gravity.CENTER);
         header.setTextColor(parseColor(options.optString("headerTextColor", "#FFFFFFFF"), Color.WHITE));
         int headerHeight = Math.max(32, options.optInt("headerHeight", 56));
+        int safeTopPx = getSafeAreaTopPx();
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(headerHeight)
+                dp(headerHeight) + safeTopPx
         );
         params.gravity = Gravity.TOP;
         header.setLayoutParams(params);
         header.setBackgroundColor(parseColor(options.optString("headerBackgroundColor", "#00000000"), Color.TRANSPARENT));
         int headerPadding = Math.max(0, options.optInt("headerPadding", 12));
-        header.setPadding(dp(headerPadding), dp(headerPadding), dp(headerPadding), dp(headerPadding));
+        header.setPadding(dp(headerPadding), safeTopPx + dp(headerPadding), dp(headerPadding), dp(headerPadding));
         float headerTextSize = Math.max(12f, (float) options.optDouble("headerFontSize", 18));
         header.setTextSize(headerTextSize);
         Typeface satoshi = Typeface.create("Satoshi", Typeface.NORMAL);
@@ -495,11 +497,29 @@ public class ScannerActivity extends Activity {
         boolean active = flashPressed || torchEnabled;
         styleButtonForState(flashButton, true, active);
         if (!hasSvg(true)) {
-            flashButton.setText(isIconMode()
-                    ? (torchEnabled ? "\uD83D\uDCA1" : options.optString("flashButtonIcon", "\u26A1"))
-                    : getButtonLabel(true));
+            flashButton.setText(getButtonLabel(true));
         }
         updateSvgButton(true, active);
+    }
+
+    private int getSafeAreaTopPx() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+                if (insets != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        return insets.getInsets(WindowInsets.Type.statusBars()).top;
+                    }
+                    return insets.getSystemWindowInsetTop();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resId > 0) {
+            return getResources().getDimensionPixelSize(resId);
+        }
+        return 0;
     }
 
     private void refreshCancelButtonAppearance() {
