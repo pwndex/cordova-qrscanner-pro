@@ -471,6 +471,10 @@
     }
     UIColor *tint = [self buttonTextColorIsFlash:isFlash active:active];
     CGFloat iconSize = [self buttonContentSize];
+    UIButton *button = isFlash ? self.flashButton : self.cancelButton;
+    CGFloat x = (CGRectGetWidth(button.bounds) - iconSize) / 2.0;
+    CGFloat y = (CGRectGetHeight(button.bounds) - iconSize) / 2.0;
+    web.frame = CGRectMake(MAX(0, x), MAX(0, y), iconSize, iconSize);
     CGFloat r = 0, g = 0, b = 0, a = 1;
     [tint getRed:&r green:&g blue:&b alpha:&a];
     NSString *hex = [NSString stringWithFormat:@"#%02X%02X%02X", (int)(r * 255), (int)(g * 255), (int)(b * 255)];
@@ -900,7 +904,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         return;
     }
     self.torchBusy = YES;
-    BOOL previous = self.torchEnabled;
+    self.torchEnabled = enabled;
 
     AVCaptureDevice *device = self.videoInput.device;
     if (!device || ![device hasTorch] || ![device isTorchModeSupported:AVCaptureTorchModeOn]) {
@@ -915,9 +919,8 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     BOOL locked = [device lockForConfiguration:&error];
     if (!locked) {
         [self debugLog:[NSString stringWithFormat:@"lockForConfiguration failed: %@", error.localizedDescription ?: @"unknown"]];
-        self.torchEnabled = previous;
         self.torchBusy = NO;
-        [self setFlashVisualState:self.torchEnabled];
+        [self setFlashVisualState:enabled];
         return;
     }
 
@@ -935,18 +938,13 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         } else {
             device.torchMode = AVCaptureTorchModeOff;
         }
-        self.torchEnabled = (device.torchMode == AVCaptureTorchModeOn);
+        self.torchEnabled = enabled;
         [self debugLog:[NSString stringWithFormat:@"torch state now %@", self.torchEnabled ? @"ON" : @"OFF"]];
-        if (enabled) {
-            self.torchEnabled = YES;
-        } else if (!enabled) {
-            self.torchEnabled = NO;
-        }
     } @finally {
         [device unlockForConfiguration];
         self.torchBusy = NO;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self setFlashVisualState:self.torchEnabled];
+            [self setFlashVisualState:enabled];
         });
     }
 }

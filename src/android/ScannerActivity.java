@@ -417,22 +417,21 @@ public class ScannerActivity extends Activity {
     }
 
     public void setTorch(boolean enabled) {
-        boolean previous = torchEnabled;
         if (!isFlashAvailable()) {
             torchEnabled = false;
             setFlashVisualState(false);
             debugLog("setTorch ignored: flash not available");
             return;
         }
+        // Keep UI toggle deterministic even if vendor camera stack reports state inconsistently.
+        torchEnabled = enabled;
         try {
             barcodeView.setTorch(enabled);
-            torchEnabled = enabled;
             debugLog("setTorch=" + enabled);
         } catch (RuntimeException e) {
-            torchEnabled = previous;
             debugLog("setTorch failed: " + e.getMessage());
         }
-        setFlashVisualState(torchEnabled);
+        setFlashVisualState(enabled);
     }
 
     public boolean isTorchEnabled() {
@@ -617,9 +616,10 @@ public class ScannerActivity extends Activity {
         Button button = isFlashButton ? flashButton : cancelButton;
         WebView svgView = createSvgView();
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+                dp(Math.max(10, Math.round(getButtonContentSizeSp()))),
+                dp(Math.max(10, Math.round(getButtonContentSizeSp())))
         );
+        lp.gravity = Gravity.CENTER;
         svgView.setLayoutParams(lp);
         container.addView(svgView);
         if (isFlashButton) {
@@ -682,6 +682,9 @@ public class ScannerActivity extends Activity {
         }
         int tint = getButtonTextColor(isFlashButton, active);
         int iconPx = dp(Math.max(10, Math.round(getButtonContentSizeSp())));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(iconPx, iconPx);
+        lp.gravity = Gravity.CENTER;
+        svgView.setLayoutParams(lp);
         String tintCss = String.format("#%06X", 0xFFFFFF & tint);
         String body;
         if (svg.trim().startsWith("<svg")) {
