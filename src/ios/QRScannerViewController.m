@@ -172,11 +172,14 @@
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    self.previewLayer.frame = self.view.bounds;
+    CGRect contentFrame = [self scannerContentFrame];
+    self.previewLayer.frame = contentFrame;
+    self.overlayView.frame = contentFrame;
     [self updateScanRect];
     [self layoutHeader];
     [self applyBottomButtonLayout:self.flashButton isFlash:YES];
     [self applyBottomButtonLayout:self.cancelButton isFlash:NO];
+    self.loader.center = CGPointMake(CGRectGetMidX(contentFrame), CGRectGetMidY(contentFrame));
     self.flashSvgView.frame = self.flashButton.bounds;
     self.cancelSvgView.frame = self.cancelButton.bounds;
 }
@@ -326,12 +329,20 @@
     CGFloat height = MAX(32.0, [self optFloat:@"headerHeight" defaultValue:56.0]);
     CGFloat padding = MAX(0.0, [self optFloat:@"headerPadding" defaultValue:12.0]);
     CGFloat safeTop = self.view.safeAreaInsets.top;
-    self.headerView.frame = CGRectMake(0, 0, self.view.bounds.size.width, height + safeTop);
+    self.headerView.frame = CGRectMake(0, safeTop, self.view.bounds.size.width, height);
     CGFloat labelX = padding;
-    CGFloat labelY = safeTop + padding;
+    CGFloat labelY = padding;
     CGFloat labelW = MAX(0.0, self.headerView.bounds.size.width - padding * 2.0);
     CGFloat labelH = MAX(0.0, height - padding * 2.0);
     self.headerLabel.frame = CGRectMake(labelX, labelY, labelW, labelH);
+}
+
+- (CGRect)scannerContentFrame {
+    CGFloat safeTop = self.view.safeAreaInsets.top;
+    CGRect frame = self.view.bounds;
+    frame.origin.y = safeTop;
+    frame.size.height = MAX(0.0, frame.size.height - safeTop);
+    return frame;
 }
 
 - (BOOL)isIconMode {
@@ -382,6 +393,7 @@
     [button setTitleColor:titleColor forState:UIControlStateHighlighted];
     [button setTitleColor:titleColor forState:UIControlStateSelected];
     button.backgroundColor = [self buttonBackgroundColorIsFlash:isFlash active:active];
+    button.selected = active;
     CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
     CGFloat radius = MAX(0.0, [self optFloat:@"buttonCornerRadius" defaultValue:(iconMode ? (size / 2.0) : 10.0)]);
     button.layer.cornerRadius = radius;
@@ -697,7 +709,7 @@
     CGFloat height = [self optFloat:@"scanZoneHeight" defaultValue:260];
     CGFloat offsetY = [self optFloat:@"scanZoneOffsetY" defaultValue:0];
 
-    CGRect bounds = self.view.bounds;
+    CGRect bounds = [self scannerContentFrame];
     CGRect scanRect = CGRectMake((bounds.size.width - width) / 2.0,
                                  (bounds.size.height - height) / 2.0 + offsetY,
                                  width,

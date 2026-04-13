@@ -84,6 +84,7 @@ public class ScannerActivity extends Activity {
     private long sessionToken;
     private boolean flashPressed = false;
     private boolean cancelPressed = false;
+    private int appliedSafeTopPx = -1;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -212,6 +213,7 @@ public class ScannerActivity extends Activity {
         root.addView(cancelButtonContainer);
 
         setContentView(root);
+        applyTopSafeAreaInsets();
         attachSvgIconIfNeeded(true);
         attachSvgIconIfNeeded(false);
         refreshFlashButtonAppearance();
@@ -228,16 +230,15 @@ public class ScannerActivity extends Activity {
         header.setGravity(Gravity.CENTER);
         header.setTextColor(parseColor(options.optString("headerTextColor", "#FFFFFFFF"), Color.WHITE));
         int headerHeight = Math.max(32, options.optInt("headerHeight", 56));
-        int safeTopPx = getSafeAreaTopPx();
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(headerHeight) + safeTopPx
+                dp(headerHeight)
         );
         params.gravity = Gravity.TOP;
         header.setLayoutParams(params);
         header.setBackgroundColor(parseColor(options.optString("headerBackgroundColor", "#00000000"), Color.TRANSPARENT));
         int headerPadding = Math.max(0, options.optInt("headerPadding", 12));
-        header.setPadding(dp(headerPadding), safeTopPx + dp(headerPadding), dp(headerPadding), dp(headerPadding));
+        header.setPadding(dp(headerPadding), dp(headerPadding), dp(headerPadding), dp(headerPadding));
         float headerTextSize = Math.max(12f, (float) options.optDouble("headerFontSize", 18));
         header.setTextSize(headerTextSize);
         Typeface satoshi = Typeface.create("Satoshi", Typeface.NORMAL);
@@ -279,6 +280,9 @@ public class ScannerActivity extends Activity {
         bg.setColor(getButtonBackgroundColor(isFlashButton, false));
         bg.setCornerRadius(dp(radiusDp));
         button.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            button.setBackgroundTintList(null);
+        }
         button.setTextColor(getButtonTextColor(isFlashButton, false));
         return button;
     }
@@ -483,6 +487,10 @@ public class ScannerActivity extends Activity {
         bg.setCornerRadius(dp(radiusDp));
         bg.setColor(getButtonBackgroundColor(isFlashButton, active));
         button.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            button.setBackgroundTintList(null);
+        }
+        button.setSelected(active);
     }
 
     private String getButtonSvg(boolean isFlashButton, boolean active) {
@@ -520,6 +528,38 @@ public class ScannerActivity extends Activity {
             return getResources().getDimensionPixelSize(resId);
         }
         return 0;
+    }
+
+    private void applyTopSafeAreaInsets() {
+        int safeTopPx = getSafeAreaTopPx();
+        if (safeTopPx == appliedSafeTopPx) {
+            return;
+        }
+        appliedSafeTopPx = safeTopPx;
+        applyTopMargin(barcodeView, safeTopPx);
+        applyTopMargin(overlayView, safeTopPx);
+        if (headerTextView != null) {
+            applyTopMargin(headerTextView, safeTopPx);
+        }
+        if (loader != null) {
+            loader.setTranslationY(safeTopPx / 2f);
+        }
+    }
+
+    private void applyTopMargin(View view, int topMarginPx) {
+        if (view == null) {
+            return;
+        }
+        ViewGroup.LayoutParams raw = view.getLayoutParams();
+        if (!(raw instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) raw;
+        if (lp.topMargin == topMarginPx) {
+            return;
+        }
+        lp.topMargin = topMarginPx;
+        view.setLayoutParams(lp);
     }
 
     private void refreshCancelButtonAppearance() {
@@ -669,6 +709,7 @@ public class ScannerActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        applyTopSafeAreaInsets();
         if (barcodeView != null && !resultLocked) {
             barcodeView.resume();
         }
