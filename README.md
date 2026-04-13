@@ -5,6 +5,25 @@ Minimal, production-ready, highly customizable QR scanner plugin for Apache Cord
 > Package id: `cordova-plugin-qrscanner-pro`  
 > JS namespace: `cordova.plugins.qrScannerPro`
 
+## Table of Contents
+
+- [UI Preview](#ui-preview)
+- [Why this plugin](#why-this-plugin)
+- [Installation](#installation)
+- [Platform support](#platform-support)
+- [Quick start](#quick-start)
+- [Platform-focused examples](#platform-focused-examples)
+- [API reference](#api-reference)
+- [Result object](#result-object)
+- [Configuration options](#configuration-options)
+- [Debug mode](#debug-mode)
+- [Header + SVG icon buttons](#header--svg-icon-buttons)
+- [Production recommendations](#production-recommendations)
+- [Security notes](#security-notes)
+- [Troubleshooting](#troubleshooting)
+- [Development and release checklist](#development-and-release-checklist)
+- [License](#license)
+
 ## UI Preview
 
 <img src="assets/images/scanner-ui-preview.png" alt="Scanner UI preview" width="260" />
@@ -323,6 +342,8 @@ type ScanResult = {
 
 All options are optional. Defaults are safe for production.
 
+### Scan Zone and Detection
+
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `scanZoneWidth` | number | `260` | Scan area width (dp/pt) |
@@ -330,40 +351,62 @@ All options are optional. Defaults are safe for production.
 | `scanZoneOffsetY` | number | `0` | Vertical offset for scan area |
 | `restrictScanToZone` | boolean | `false` | Accept detection only when code center is inside scan zone |
 | `preferFrontCamera` | boolean | `false` | Prefer front camera on iOS (if available) |
+| `formats` | string[] | QR-focused defaults | Custom ZXing formats (Android only) |
+
+### Overlay, Frame, and Scan Line
+
+| Option | Type | Default | Description |
+|---|---|---|---|
 | `darkenOutside` | boolean | `true` | Darken area outside scan zone |
 | `overlayColor` | string | `#88000000` | Overlay color |
 | `frameColor` | string | `#00E676` | Scan frame color |
 | `frameThickness` | number | `3` | Frame stroke thickness |
 | `frameCornerRadius` | number | `12` | Frame corner radius |
-| `showLoader` | boolean | `true` | Show loader before returning result |
-| `loaderColor` | string | `#00E676` | Loader color |
-| `loadingDelayMs` | number | `700` | Delay before success callback |
+| `animateScanLine` | boolean | `true` | Enable animated scan line |
+| `scanLineColor` | string | `#00E676` | Scan line color |
+| `scanLineThickness` | number | `3` | Scan line thickness |
+| `scanLineDurationMs` | number | `1800` | Full up/down animation duration |
+
+### Header
+
+| Option | Type | Default | Description |
+|---|---|---|---|
 | `headerText` | string | `""` | Top centered header text (empty = hidden) |
 | `headerHeight` | number | `56` | Header height (dp/pt) |
 | `headerPadding` | number | `12` | Inner text padding inside header (dp/pt) |
 | `headerBackgroundColor` | string | `#00000000` | Header background color (supports transparent) |
 | `headerTextColor` | string | `#FFFFFFFF` | Header text color |
 | `headerFontSize` | number | `18` | Header text size |
+
+### Buttons: Layout and Content
+
+| Option | Type | Default | Description |
+|---|---|---|---|
 | `showFlashButton` | boolean | `true` | Show Flash button |
-| `flashButtonText` | string | `Flash` | Flash button label |
-| `flashButtonIcon` | string | `⚡` | Flash icon in `buttonMode: "icon"` |
-| `flashButtonSvg` | string | `""` | Inline SVG or SVG data URL for flash button (icon mode) |
-| `flashButtonActiveSvg` | string | `""` | Active-state SVG for flash button (icon mode) |
 | `showCancelButton` | boolean | `true` | Show Cancel button |
-| `cancelButtonText` | string | `Cancel` | Cancel button label |
-| `cancelButtonIcon` | string | `✕` | Cancel icon in `buttonMode: "icon"` |
-| `cancelButtonSvg` | string | `""` | Inline SVG or SVG data URL for cancel button (icon mode) |
-| `cancelButtonActiveSvg` | string | `""` | Active-state SVG for cancel button (icon mode) |
 | `buttonMode` | string | `text` | `text` or `icon` |
 | `buttonSize` | number | `52` | Button height; icon mode uses square |
 | `buttonTextWidth` | number | `110` | Text mode button width |
 | `buttonCornerRadius` | number | `10` | Button corner radius |
 | `buttonSpacing` | number | `16` | Space between flash/cancel buttons |
 | `buttonBottomOffset` | number | `46` | Distance from bottom edge |
-| `buttonTextColor` | string | `#FFFFFFFF` | Button text color |
-| `buttonBackgroundColor` | string | `#66000000` | Button background color |
-| `buttonActiveTextColor` | string | `#FFFFFFFF` | Active-state text/icon color |
-| `buttonActiveBackgroundColor` | string | `#AA000000` | Active-state background color |
+| `flashButtonText` | string | `Flash` | Flash button label |
+| `flashButtonIcon` | string | `⚡` | Flash icon in `buttonMode: "icon"` |
+| `flashButtonSvg` | string | `""` | Inline SVG or SVG data URL for flash button (icon mode) |
+| `flashButtonActiveSvg` | string | `""` | Active-state SVG for flash button (icon mode) |
+| `cancelButtonText` | string | `Cancel` | Cancel button label |
+| `cancelButtonIcon` | string | `✕` | Cancel icon in `buttonMode: "icon"` |
+| `cancelButtonSvg` | string | `""` | Inline SVG or SVG data URL for cancel button (icon mode) |
+| `cancelButtonActiveSvg` | string | `""` | Active-state SVG for cancel button (icon mode) |
+
+### Buttons: Colors (Global + Per-Button Overrides)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `buttonTextColor` | string | `#FFFFFFFF` | Button text/icon color (normal) |
+| `buttonBackgroundColor` | string | `#66000000` | Button background color (normal) |
+| `buttonActiveTextColor` | string | `#FFFFFFFF` | Button text/icon color (active) |
+| `buttonActiveBackgroundColor` | string | `#AA000000` | Button background color (active) |
 | `flashButtonTextColor` | string | `""` | Flash text/icon color override (normal) |
 | `flashButtonBackgroundColor` | string | `""` | Flash background override (normal) |
 | `flashButtonActiveTextColor` | string | `""` | Flash text/icon color override (active) |
@@ -372,15 +415,23 @@ All options are optional. Defaults are safe for production.
 | `cancelButtonBackgroundColor` | string | `""` | Cancel background override (normal) |
 | `cancelButtonActiveTextColor` | string | `""` | Cancel text/icon color override (active) |
 | `cancelButtonActiveBackgroundColor` | string | `""` | Cancel background override (active) |
-| `animateScanLine` | boolean | `true` | Enable animated scan line |
-| `scanLineColor` | string | `#00E676` | Scan line color |
-| `scanLineThickness` | number | `3` | Scan line thickness |
-| `scanLineDurationMs` | number | `1800` | Full up/down animation duration |
+
+### Session Behavior and Feedback
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `showLoader` | boolean | `true` | Show loader before returning result |
+| `loaderColor` | string | `#00E676` | Loader color |
+| `loadingDelayMs` | number | `700` | Delay before success callback |
+| `hapticFeedback` | boolean | `true` | Vibrate/beep on success |
+
+### Debug and Platform-Specific
+
+| Option | Type | Default | Description |
+|---|---|---|---|
 | `debug` | boolean | `false` | Enable native debug logs for scan lifecycle |
 | `debugTag` | string | `QrScannerPro` | Prefix tag for native logs |
-| `hapticFeedback` | boolean | `true` | Vibrate/beep on success |
 | `returnRawBytesBase64` | boolean | `false` | Return raw bytes (Android only) |
-| `formats` | string[] | QR-focused defaults | Custom ZXing formats (Android only) |
 
 ### Debug mode
 
