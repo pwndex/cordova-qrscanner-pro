@@ -486,9 +486,7 @@
 }
 
 - (void)refreshFlashButtonAppearance {
-    BOOL active = self.torchEnabled;
-    [self applyFlashButtonVisualState:active];
-    [self refreshSvgForButton:YES active:active];
+    [self setFlashVisualState:self.torchEnabled];
 }
 
 - (void)refreshCancelButtonAppearance {
@@ -859,8 +857,8 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 }
 
 - (void)onFlashTap {
-    [self toggleTorch];
-    [self refreshFlashButtonAppearance];
+    BOOL isActive = [self toggleTorch];
+    [self setFlashVisualState:isActive];
 }
 
 - (void)onCancelTap {
@@ -909,7 +907,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         [self debugLog:@"torch not available/supported"];
         self.torchEnabled = NO;
         self.torchBusy = NO;
-        [self applyFlashButtonVisualState:NO];
+        [self setFlashVisualState:NO];
         return;
     }
 
@@ -919,7 +917,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         [self debugLog:[NSString stringWithFormat:@"lockForConfiguration failed: %@", error.localizedDescription ?: @"unknown"]];
         self.torchEnabled = previous;
         self.torchBusy = NO;
-        [self applyFlashButtonVisualState:self.torchEnabled];
+        [self setFlashVisualState:self.torchEnabled];
         return;
     }
 
@@ -948,14 +946,18 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         [device unlockForConfiguration];
         self.torchBusy = NO;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self applyFlashButtonVisualState:self.torchEnabled];
-            [self refreshSvgForButton:YES active:self.torchEnabled];
+            [self setFlashVisualState:self.torchEnabled];
         });
     }
 }
 
 - (void)applyFlashButtonVisualState:(BOOL)isFlashActive {
     [self styleButton:self.flashButton isFlash:YES active:isFlashActive];
+}
+
+- (void)setFlashVisualState:(BOOL)isFlashActive {
+    [self applyFlashButtonVisualState:isFlashActive];
+    [self refreshSvgForButton:YES active:isFlashActive];
 }
 
 - (BOOL)torchEnabledState {

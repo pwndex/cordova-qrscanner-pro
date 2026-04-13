@@ -161,8 +161,8 @@ public class ScannerActivity extends Activity {
         applyBottomButtonLayout(flashParams, true);
         flashButtonContainer.setLayoutParams(flashParams);
         flashButton.setOnClickListener(v -> {
-            toggleTorch();
-            refreshFlashButtonAppearance();
+            boolean isActive = toggleTorch();
+            setFlashVisualState(isActive);
         });
         flashButtonContainer.setVisibility(options.optBoolean("showFlashButton", true) ? View.VISIBLE : View.GONE);
         root.addView(flashButtonContainer);
@@ -408,7 +408,7 @@ public class ScannerActivity extends Activity {
         if (!isFlashAvailable()) {
             debugLog("toggleTorch ignored: flash not available");
             torchEnabled = false;
-            applyFlashButtonVisualState(false);
+            setFlashVisualState(false);
             return false;
         }
         setTorch(!torchEnabled);
@@ -420,7 +420,7 @@ public class ScannerActivity extends Activity {
         boolean previous = torchEnabled;
         if (!isFlashAvailable()) {
             torchEnabled = false;
-            applyFlashButtonVisualState(false);
+            setFlashVisualState(false);
             debugLog("setTorch ignored: flash not available");
             return;
         }
@@ -432,7 +432,7 @@ public class ScannerActivity extends Activity {
             torchEnabled = previous;
             debugLog("setTorch failed: " + e.getMessage());
         }
-        applyFlashButtonVisualState(torchEnabled);
+        setFlashVisualState(torchEnabled);
     }
 
     public boolean isTorchEnabled() {
@@ -507,16 +507,19 @@ public class ScannerActivity extends Activity {
     }
 
     private void refreshFlashButtonAppearance() {
-        boolean active = torchEnabled;
-        applyFlashButtonVisualState(active);
-        if (!hasSvg(true)) {
-            flashButton.setText(getButtonLabel(true));
-        }
-        updateSvgButton(true, active);
+        setFlashVisualState(torchEnabled);
     }
 
     private void applyFlashButtonVisualState(boolean isFlashActive) {
         styleButtonForState(flashButton, true, isFlashActive);
+    }
+
+    private void setFlashVisualState(boolean isFlashActive) {
+        applyFlashButtonVisualState(isFlashActive);
+        if (!hasSvg(true)) {
+            flashButton.setText(getButtonLabel(true));
+        }
+        updateSvgButton(true, isFlashActive);
     }
 
     private int getSafeAreaTopPx() {
