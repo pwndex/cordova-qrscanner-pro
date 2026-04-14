@@ -443,7 +443,6 @@ public class ScannerActivity extends Activity {
             } else {
                 barcodeView.setTorchOff();
             }
-            torchEnabled = enabled;
             debugLog("setTorch=" + enabled);
         } catch (RuntimeException e) {
             debugLog("setTorch failed: " + e.getMessage());
