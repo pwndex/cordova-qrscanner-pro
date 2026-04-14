@@ -23,6 +23,13 @@
             <uses-permission android:name="android.permission.CAMERA" />
         </config-file>
 
+        <config-file target="AndroidManifest.xml" parent="/manifest/application">
+            <activity
+                android:name="com.qrscannerpro.ScannerActivity"
+                android:screenOrientation="portrait"
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+        </config-file>
+
         <framework src="com.journeyapps:zxing-android-embedded:4.3.0" />
         <framework src="com.google.zxing:core:3.5.3" />
 

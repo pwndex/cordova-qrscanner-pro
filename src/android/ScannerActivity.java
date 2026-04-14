@@ -18,7 +18,7 @@ import android.graphics.Typeface;
 import android.view.WindowInsets;
 import android.util.Base64;
 import android.util.Log;
-import android.util.Size;
+import com.journeyapps.barcodescanner.Size;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -438,7 +438,11 @@ public class ScannerActivity extends Activity {
         // Keep UI toggle deterministic even if vendor camera stack reports state inconsistently.
         torchEnabled = enabled;
         try {
-            barcodeView.setTorch(enabled);
+            if (enabled) {
+                barcodeView.setTorchOn();
+            } else {
+                barcodeView.setTorchOff();
+            }
             debugLog("setTorch=" + enabled);
         } catch (RuntimeException e) {
             debugLog("setTorch failed: " + e.getMessage());
