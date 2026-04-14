@@ -4,6 +4,7 @@
 #import <math.h>
 #import <Vision/Vision.h>
 #import <ImageIO/ImageIO.h>
+#import <WebKit/WebKit.h>
 
 @interface QROverlayView : UIView
 @property (nonatomic, strong) NSDictionary *options;
@@ -127,6 +128,11 @@
 @property (nonatomic, strong) UIActivityIndicatorView *loader;
 @property (nonatomic, strong) UIButton *flashButton;
 @property (nonatomic, strong) UIButton *cancelButton;
+@property (nonatomic, strong) WKWebView *flashSvgView;
+@property (nonatomic, strong) WKWebView *cancelSvgView;
+@property (nonatomic, strong) UIView *safeAreaTopView;
+@property (nonatomic, strong) UIView *headerView;
+@property (nonatomic, strong) UILabel *headerLabel;
 @property (nonatomic, strong) QROverlayView *overlayView;
 @property (nonatomic, assign) BOOL resultLocked;
 @property (nonatomic, assign) BOOL torchEnabled;
@@ -165,10 +171,17 @@
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    self.previewLayer.frame = self.view.bounds;
+    [self layoutSafeAreaOverlay];
+    CGRect contentFrame = [self scannerContentFrame];
+    self.previewLayer.frame = contentFrame;
+    self.overlayView.frame = contentFrame;
     [self updateScanRect];
+    [self layoutHeader];
     [self applyBottomButtonLayout:self.flashButton isFlash:YES];
     [self applyBottomButtonLayout:self.cancelButton isFlash:NO];
+    self.loader.center = CGPointMake(CGRectGetMidX(contentFrame), CGRectGetMidY(contentFrame));
+    self.flashSvgView.frame = self.flashButton.bounds;
+    self.cancelSvgView.frame = self.cancelButton.bounds;
 }
 
 - (UIColor *)colorFromHex:(NSString *)hex fallback:(UIColor *)fallback {
@@ -245,6 +258,12 @@
     self.overlayView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:self.overlayView];
 
+    self.safeAreaTopView = [[UIView alloc] initWithFrame:CGRectZero];
+    self.safeAreaTopView.hidden = YES;
+    [self.view addSubview:self.safeAreaTopView];
+
+    [self buildHeader];
+
     UIActivityIndicatorViewStyle loaderStyle = UIActivityIndicatorViewStyleWhiteLarge;
     if (@available(iOS 13.0, *)) {
         loaderStyle = UIActivityIndicatorViewStyleLarge;
@@ -260,67 +279,252 @@
                                  | UIViewAutoresizingFlexibleBottomMargin;
     [self.view addSubview:self.loader];
 
-    self.flashButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [self styleButton:self.flashButton
-                title:[self buttonTitleForFlash:NO]];
+    self.flashButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    [self styleButton:self.flashButton isFlash:YES active:NO];
     [self applyBottomButtonLayout:self.flashButton isFlash:YES];
     [self.flashButton addTarget:self action:@selector(onFlashTap) forControlEvents:UIControlEventTouchUpInside];
     self.flashButton.hidden = ![self optBool:@"showFlashButton" defaultValue:YES];
     [self.view addSubview:self.flashButton];
+    [self attachSvgIfNeeded:YES];
 
-    self.cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [self styleButton:self.cancelButton
-                title:[self buttonTitleForCancel]];
+    self.cancelButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    [self styleButton:self.cancelButton isFlash:NO active:NO];
     [self applyBottomButtonLayout:self.cancelButton isFlash:NO];
     [self.cancelButton addTarget:self action:@selector(onCancelTap) forControlEvents:UIControlEventTouchUpInside];
     self.cancelButton.hidden = ![self optBool:@"showCancelButton" defaultValue:YES];
     [self.view addSubview:self.cancelButton];
+    [self attachSvgIfNeeded:NO];
+    [self refreshFlashButtonAppearance];
+    [self refreshCancelButtonAppearance];
 }
 
-- (void)styleButton:(UIButton *)button title:(NSString *)title {
-    [button setTitle:title forState:UIControlStateNormal];
-    BOOL iconMode = [[self optString:@"buttonMode" defaultValue:@"text"] isEqualToString:@"icon"];
-    UIColor *textColor = [self colorFromHex:[self optString:@"buttonTextColor" defaultValue:@"#FFFFFFFF"] fallback:[UIColor whiteColor]];
-    UIColor *background = [self colorFromHex:[self optString:@"buttonBackgroundColor" defaultValue:@"#66000000"] fallback:[UIColor colorWithWhite:0 alpha:0.4]];
-    [button setTitleColor:textColor forState:UIControlStateNormal];
-    button.backgroundColor = background;
-    CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
-    CGFloat radius = MAX(0.0, [self optFloat:@"buttonCornerRadius" defaultValue:(iconMode ? (size / 2.0) : 10.0)]);
-    button.layer.cornerRadius = radius;
-    button.titleLabel.font = [UIFont systemFontOfSize:(iconMode ? 23.0 : 15.0) weight:UIFontWeightSemibold];
+- (NSString *)safeAreaColorValue {
+    id value = self.options[@"safeAreaColor"];
+    if ([value isKindOfClass:[NSString class]]) {
+        return [(NSString *)value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    }
+    return @"";
 }
 
-- (void)applyBottomButtonLayout:(UIButton *)button isFlash:(BOOL)isFlash {
-    BOOL iconMode = [[self optString:@"buttonMode" defaultValue:@"text"] isEqualToString:@"icon"];
-    CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
-    CGFloat spacing = MAX(8.0, [self optFloat:@"buttonSpacing" defaultValue:16]);
-    CGFloat bottomOffset = MAX(8.0, [self optFloat:@"buttonBottomOffset" defaultValue:46]);
-    CGFloat textWidth = MAX(96.0, [self optFloat:@"buttonTextWidth" defaultValue:110]);
-    CGFloat width = iconMode ? size : textWidth;
-    CGFloat halfGap = spacing / 2.0 + width / 2.0;
-    CGFloat centerX = self.view.bounds.size.width / 2.0 + (isFlash ? -halfGap : halfGap);
-    CGFloat originX = centerX - width / 2.0;
-    CGFloat originY = self.view.bounds.size.height - bottomOffset - size;
-
-    button.frame = CGRectMake(originX, originY, width, size);
-    button.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+- (void)layoutSafeAreaOverlay {
+    if (!self.safeAreaTopView) {
+        return;
+    }
+    NSString *safeAreaColor = [self safeAreaColorValue];
+    CGFloat safeTop = self.view.safeAreaInsets.top;
+    if (safeAreaColor.length == 0 || safeTop <= 0.0) {
+        self.safeAreaTopView.hidden = YES;
+        return;
+    }
+    self.safeAreaTopView.hidden = NO;
+    self.safeAreaTopView.backgroundColor = [self colorFromHex:safeAreaColor fallback:[UIColor clearColor]];
+    self.safeAreaTopView.frame = CGRectMake(0, 0, self.view.bounds.size.width, safeTop);
 }
 
-- (NSString *)buttonTitleForFlash:(BOOL)enabled {
-    BOOL iconMode = [[self optString:@"buttonMode" defaultValue:@"text"] isEqualToString:@"icon"];
-    if (iconMode) {
-        return enabled ? @"💡" : [self optString:@"flashButtonIcon" defaultValue:@"⚡"];
+- (void)buildHeader {
+    NSString *title = [[self optString:@"headerText" defaultValue:@""] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (title.length == 0) {
+        return;
+    }
+    self.headerView = [[UIView alloc] initWithFrame:CGRectZero];
+    self.headerView.backgroundColor = [self colorFromHex:[self optString:@"headerBackgroundColor" defaultValue:@"#00000000"]
+                                                fallback:[UIColor clearColor]];
+    [self.view addSubview:self.headerView];
+
+    self.headerLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    self.headerLabel.textAlignment = NSTextAlignmentCenter;
+    self.headerLabel.text = title;
+    self.headerLabel.textColor = [self colorFromHex:[self optString:@"headerTextColor" defaultValue:@"#FFFFFFFF"] fallback:[UIColor whiteColor]];
+    CGFloat size = MAX(12.0, [self optFloat:@"headerFontSize" defaultValue:18.0]);
+    UIFont *font = [UIFont fontWithName:@"Satoshi-Regular" size:size];
+    if (!font) {
+        font = [UIFont systemFontOfSize:size weight:UIFontWeightSemibold];
+    }
+    self.headerLabel.font = font;
+    [self.headerView addSubview:self.headerLabel];
+    [self layoutHeader];
+}
+
+- (void)layoutHeader {
+    if (!self.headerView) {
+        return;
+    }
+    CGFloat height = MAX(32.0, [self optFloat:@"headerHeight" defaultValue:56.0]);
+    CGFloat padding = MAX(0.0, [self optFloat:@"headerPadding" defaultValue:12.0]);
+    CGFloat safeTop = self.view.safeAreaInsets.top;
+    self.headerView.frame = CGRectMake(0, safeTop, self.view.bounds.size.width, height);
+    CGFloat labelX = padding;
+    CGFloat labelY = padding;
+    CGFloat labelW = MAX(0.0, self.headerView.bounds.size.width - padding * 2.0);
+    CGFloat labelH = MAX(0.0, height - padding * 2.0);
+    self.headerLabel.frame = CGRectMake(labelX, labelY, labelW, labelH);
+}
+
+- (CGRect)scannerContentFrame {
+    CGFloat safeTop = self.view.safeAreaInsets.top;
+    CGRect frame = self.view.bounds;
+    frame.origin.y = safeTop;
+    frame.size.height = MAX(0.0, frame.size.height - safeTop);
+    return frame;
+}
+
+- (BOOL)isIconMode {
+    return [[self optString:@"buttonMode" defaultValue:@"text"] isEqualToString:@"icon"];
+}
+
+- (NSString *)buttonLabelForFlash {
+    if ([self isIconMode]) {
+        return [self optString:@"flashButtonIcon" defaultValue:@"⚡"];
     }
     NSString *base = [self optString:@"flashButtonText" defaultValue:@"Flash"];
-    return enabled ? [base stringByAppendingString:@" ON"] : base;
+    return self.torchEnabled ? [base stringByAppendingString:@" ON"] : base;
 }
 
-- (NSString *)buttonTitleForCancel {
-    BOOL iconMode = [[self optString:@"buttonMode" defaultValue:@"text"] isEqualToString:@"icon"];
-    if (iconMode) {
+- (NSString *)buttonLabelForCancel {
+    if ([self isIconMode]) {
         return [self optString:@"cancelButtonIcon" defaultValue:@"✕"];
     }
     return [self optString:@"cancelButtonText" defaultValue:@"Cancel"];
+}
+
+- (UIColor *)buttonTextColorIsFlash:(BOOL)isFlash active:(BOOL)active {
+    NSString *globalColor = [self optString:@"buttonTextColor" defaultValue:@"#FFFFFFFF"];
+    NSString *buttonKey;
+    if (isFlash) {
+        buttonKey = active ? @"flashButtonActiveTextColor" : @"flashButtonTextColor";
+    } else {
+        buttonKey = @"cancelButtonTextColor";
+    }
+    NSString *override = [self optString:buttonKey defaultValue:@""];
+    NSString *resolved = override.length > 0 ? override : globalColor;
+    return [self colorFromHex:resolved fallback:[UIColor whiteColor]];
+}
+
+- (UIColor *)buttonBackgroundColorIsFlash:(BOOL)isFlash active:(BOOL)active {
+    NSString *globalColor = [self optString:@"buttonBackgroundColor" defaultValue:@"#66000000"];
+    NSString *buttonKey;
+    if (isFlash) {
+        buttonKey = active ? @"flashButtonActiveBackgroundColor" : @"flashButtonBackgroundColor";
+    } else {
+        buttonKey = @"cancelButtonBackgroundColor";
+    }
+    NSString *override = [self optString:buttonKey defaultValue:@""];
+    NSString *resolved = override.length > 0 ? override : globalColor;
+    return [self colorFromHex:resolved fallback:[UIColor colorWithWhite:0 alpha:(active ? 0.67 : 0.4)]];
+}
+
+- (void)styleButton:(UIButton *)button isFlash:(BOOL)isFlash active:(BOOL)active {
+    NSString *title = [self hasSvgForButton:isFlash] ? @"" : (isFlash ? [self buttonLabelForFlash] : [self buttonLabelForCancel]);
+    [button setTitle:title forState:UIControlStateNormal];
+    [button setTitle:title forState:UIControlStateHighlighted];
+    [button setTitle:title forState:UIControlStateSelected];
+    BOOL iconMode = [self isIconMode];
+    UIColor *titleColor = [self buttonTextColorIsFlash:isFlash active:active];
+    [button setTitleColor:titleColor forState:UIControlStateNormal];
+    [button setTitleColor:titleColor forState:UIControlStateHighlighted];
+    [button setTitleColor:titleColor forState:UIControlStateSelected];
+    button.backgroundColor = [self buttonBackgroundColorIsFlash:isFlash active:active];
+    CGFloat size = MAX(36.0, [self optFloat:@"buttonSize" defaultValue:52]);
+    CGFloat radius = MAX(0.0, [self optFloat:@"buttonCornerRadius" defaultValue:(iconMode ? (size / 2.0) : 10.0)]);
+    button.layer.cornerRadius = radius;
+    button.clipsToBounds = YES;
+    button.titleLabel.font = [UIFont systemFontOfSize:[self buttonContentSize] weight:UIFontWeightSemibold];
+}
+
+- (CGFloat)buttonContentSize {
+    BOOL iconMode = [self isIconMode];
+    CGFloat fallback = iconMode ? 22.0 : 15.0;
+    return MAX(10.0, [self optFloat:@"buttonContentSize" defaultValue:fallback]);
+}
+
+- (void)applyBottomButtonLayout:(UIButton *)button isFlash:(BOOL)isFlash {
+    BOOL iconMode = [self isIconMode];
+    CGFloat buttonHeight = MAX(32.0, [self optFloat:@"buttonHeight" defaultValue:[self optFloat:@"buttonSize" defaultValue:52]]);
+    CGFloat buttonWidth = iconMode
+        ? MAX(32.0, [self optFloat:@"buttonSize" defaultValue:52])
+        : MAX(64.0, [self optFloat:@"buttonWidth" defaultValue:110]);
+    CGFloat spacing = MAX(8.0, [self optFloat:@"buttonSpacing" defaultValue:16]);
+    CGFloat bottomOffset = MAX(8.0, [self optFloat:@"buttonBottomOffset" defaultValue:46]);
+    CGFloat halfGap = spacing / 2.0 + buttonWidth / 2.0;
+    CGRect contentFrame = [self scannerContentFrame];
+    CGFloat centerX = CGRectGetMidX(contentFrame) + (isFlash ? -halfGap : halfGap);
+    CGFloat originX = centerX - buttonWidth / 2.0;
+    CGFloat originY = CGRectGetMaxY(contentFrame) - bottomOffset - buttonHeight - self.view.safeAreaInsets.bottom;
+
+    button.frame = CGRectMake(originX, originY, buttonWidth, buttonHeight);
+    button.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+}
+
+- (NSString *)buttonIconValue:(BOOL)isFlash {
+    return [self optString:(isFlash ? @"flashButtonIcon" : @"cancelButtonIcon") defaultValue:(isFlash ? @"⚡" : @"✕")];
+}
+
+- (BOOL)isSvgValue:(NSString *)value {
+    NSString *trimmed = [[value ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString];
+    return [trimmed hasPrefix:@"<svg"] || [trimmed hasPrefix:@"data:image/svg"] || [trimmed containsString:@".svg"];
+}
+
+- (BOOL)hasSvgForButton:(BOOL)isFlash {
+    return [self isIconMode] && [self isSvgValue:[self buttonIconValue:isFlash]];
+}
+
+- (void)attachSvgIfNeeded:(BOOL)isFlash {
+    if (![self hasSvgForButton:isFlash]) {
+        return;
+    }
+    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+    WKWebView *web = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
+    web.backgroundColor = [UIColor clearColor];
+    web.opaque = NO;
+    web.userInteractionEnabled = NO;
+    web.scrollView.scrollEnabled = NO;
+    UIButton *button = isFlash ? self.flashButton : self.cancelButton;
+    [button addSubview:web];
+    web.frame = button.bounds;
+    if (isFlash) {
+        self.flashSvgView = web;
+    } else {
+        self.cancelSvgView = web;
+    }
+    [button setTitle:@"" forState:UIControlStateNormal];
+}
+
+- (void)refreshSvgForButton:(BOOL)isFlash active:(BOOL)active {
+    WKWebView *web = isFlash ? self.flashSvgView : self.cancelSvgView;
+    if (!web) {
+        return;
+    }
+    NSString *svg = [self buttonIconValue:isFlash];
+    if (svg.length == 0) {
+        return;
+    }
+    UIColor *tint = [self buttonTextColorIsFlash:isFlash active:active];
+    CGFloat iconSize = [self buttonContentSize];
+    UIButton *button = isFlash ? self.flashButton : self.cancelButton;
+    CGFloat x = (CGRectGetWidth(button.bounds) - iconSize) / 2.0;
+    CGFloat y = (CGRectGetHeight(button.bounds) - iconSize) / 2.0;
+    web.frame = CGRectMake(MAX(0, x), MAX(0, y), iconSize, iconSize);
+    CGFloat r = 0, g = 0, b = 0, a = 1;
+    [tint getRed:&r green:&g blue:&b alpha:&a];
+    NSString *hex = [NSString stringWithFormat:@"#%02X%02X%02X", (int)(r * 255), (int)(g * 255), (int)(b * 255)];
+    NSString *body;
+    if ([svg hasPrefix:@"<svg"]) {
+        body = [svg stringByReplacingOccurrencesOfString:@"<svg" withString:@"<svg fill=\"currentColor\""];
+    } else {
+        body = [NSString stringWithFormat:@"<img src=\"%@\" style=\"width:100%%;height:100%%;object-fit:contain;\"/>", svg];
+    }
+    NSString *html = [NSString stringWithFormat:@"<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>"
+                      "<style>html,body{margin:0;padding:0;background:transparent;width:100%%;height:100%%;display:flex;align-items:center;justify-content:center;color:%@;}svg,img{width:%.1fpx !important;height:%.1fpx !important;max-width:90%%;max-height:90%%;}</style></head><body>%@</body></html>", hex, iconSize, iconSize, body];
+    [web loadHTMLString:html baseURL:nil];
+}
+
+- (void)refreshFlashButtonAppearance {
+    [self setFlashVisualState:self.torchEnabled];
+}
+
+- (void)refreshCancelButtonAppearance {
+    [self styleButton:self.cancelButton isFlash:NO active:NO];
+    [self refreshSvgForButton:NO active:NO];
 }
 
 - (void)setupCamera {
@@ -546,7 +750,7 @@
     CGFloat height = [self optFloat:@"scanZoneHeight" defaultValue:260];
     CGFloat offsetY = [self optFloat:@"scanZoneOffsetY" defaultValue:0];
 
-    CGRect bounds = self.view.bounds;
+    CGRect bounds = [self scannerContentFrame];
     CGRect scanRect = CGRectMake((bounds.size.width - width) / 2.0,
                                  (bounds.size.height - height) / 2.0 + offsetY,
                                  width,
@@ -686,12 +890,13 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 }
 
 - (void)onFlashTap {
-    BOOL enabled = [self toggleTorch];
-    [self.flashButton setTitle:[self buttonTitleForFlash:enabled] forState:UIControlStateNormal];
+    BOOL isActive = [self toggleTorch];
+    [self setFlashVisualState:isActive];
 }
 
 - (void)onCancelTap {
     [self debugLog:@"cancel button tapped"];
+    [self refreshCancelButtonAppearance];
     [self handleCancel:@"Scan cancelled by user."];
 }
 
@@ -728,12 +933,14 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         return;
     }
     self.torchBusy = YES;
+    self.torchEnabled = enabled;
 
     AVCaptureDevice *device = self.videoInput.device;
     if (!device || ![device hasTorch] || ![device isTorchModeSupported:AVCaptureTorchModeOn]) {
         [self debugLog:@"torch not available/supported"];
         self.torchEnabled = NO;
         self.torchBusy = NO;
+        [self setFlashVisualState:NO];
         return;
     }
 
@@ -741,8 +948,8 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     BOOL locked = [device lockForConfiguration:&error];
     if (!locked) {
         [self debugLog:[NSString stringWithFormat:@"lockForConfiguration failed: %@", error.localizedDescription ?: @"unknown"]];
-        self.torchEnabled = (device.torchMode == AVCaptureTorchModeOn);
         self.torchBusy = NO;
+        [self setFlashVisualState:enabled];
         return;
     }
 
@@ -760,12 +967,24 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
         } else {
             device.torchMode = AVCaptureTorchModeOff;
         }
-        self.torchEnabled = (device.torchMode == AVCaptureTorchModeOn);
+        self.torchEnabled = enabled;
         [self debugLog:[NSString stringWithFormat:@"torch state now %@", self.torchEnabled ? @"ON" : @"OFF"]];
     } @finally {
         [device unlockForConfiguration];
         self.torchBusy = NO;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self setFlashVisualState:enabled];
+        });
     }
+}
+
+- (void)applyFlashButtonVisualState:(BOOL)isFlashActive {
+    [self styleButton:self.flashButton isFlash:YES active:isFlashActive];
+}
+
+- (void)setFlashVisualState:(BOOL)isFlashActive {
+    [self applyFlashButtonVisualState:isFlashActive];
+    [self refreshSvgForButton:YES active:isFlashActive];
 }
 
 - (BOOL)torchEnabledState {

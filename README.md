@@ -5,6 +5,25 @@ Minimal, production-ready, highly customizable QR scanner plugin for Apache Cord
 > Package id: `cordova-plugin-qrscanner-pro`  
 > JS namespace: `cordova.plugins.qrScannerPro`
 
+## Table of Contents
+
+- [UI Preview](#ui-preview)
+- [Why this plugin](#why-this-plugin)
+- [Installation](#installation)
+- [Platform support](#platform-support)
+- [Quick start](#quick-start)
+- [Platform-focused examples](#platform-focused-examples)
+- [API reference](#api-reference)
+- [Result object](#result-object)
+- [Configuration options](#configuration-options)
+- [Debug mode](#debug-mode)
+- [Header + icon buttons](#header--icon-buttons)
+- [Production recommendations](#production-recommendations)
+- [Security notes](#security-notes)
+- [Troubleshooting](#troubleshooting)
+- [Development and release checklist](#development-and-release-checklist)
+- [License](#license)
+
 ## UI Preview
 
 <img src="assets/images/scanner-ui-preview.png" alt="Scanner UI preview" width="260" />
@@ -13,7 +32,7 @@ Minimal, production-ready, highly customizable QR scanner plugin for Apache Cord
 
 - Native camera scanning on both platforms
 - Fast, stable QR detection with clean UX defaults
-- Full-screen customizable scanner UI (scan area, frame, overlay, loader, scan line, buttons)
+- Full-screen customizable scanner UI (scan area, frame, overlay, loader, scan line, header, buttons)
 - Straightforward API for app flows (`scan`, `cancel`, `toggleFlash`, `setFlash`)
 - Security-friendly design (no network calls, local-only processing)
 
@@ -61,13 +80,33 @@ document.addEventListener("deviceready", function () {
       loadingDelayMs: 850,
       showFlashButton: true,
       showCancelButton: true,
+      headerText: "Align QR in frame",
+      headerHeight: 58,
+      headerPadding: 12,
+      safeAreaColor: "#101214",
+      headerBackgroundColor: "#66000000",
+      headerTextColor: "#FFFFFF",
+      headerFontSize: 17,
       buttonMode: "icon",
       buttonSize: 54,
+      buttonHeight: 54,
+      buttonWidth: 120,
+      buttonContentSize: 20,
       buttonCornerRadius: 27,
       buttonSpacing: 14,
       buttonBottomOffset: 56,
-      flashButtonIcon: "⚡",
-      cancelButtonIcon: "✕",
+      flashButtonIcon:
+        "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
+      cancelButtonIcon:
+        "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2.2' fill='none' stroke-linecap='round'/></svg>",
+      buttonTextColor: "#FFFFFF",
+      buttonBackgroundColor: "#80111111",
+      flashButtonBackgroundColor: "#AA0057FF",
+      flashButtonTextColor: "#FFFFFF",
+      flashButtonActiveTextColor: "#111111",
+      flashButtonActiveBackgroundColor: "#FF2F7BFF",
+      cancelButtonBackgroundColor: "#AA2A2A2A",
+      cancelButtonTextColor: "#FFFFFF",
       animateScanLine: true
     },
     function onSuccess(result) {
@@ -114,6 +153,7 @@ document.addEventListener("deviceready", function () {
         showCancelButton: true,
         buttonMode: "icon",
         buttonSize: 54,
+        buttonContentSize: 20,
         buttonCornerRadius: 27,
         buttonSpacing: 14,
         buttonBottomOffset: 56,
@@ -177,6 +217,7 @@ document.addEventListener("deviceready", function () {
         showCancelButton: true,
         buttonMode: "icon",
         buttonSize: 54,
+        buttonContentSize: 20,
         buttonCornerRadius: 27,
         buttonSpacing: 14,
         buttonBottomOffset: 56,
@@ -305,6 +346,8 @@ type ScanResult = {
 
 All options are optional. Defaults are safe for production.
 
+### Scan Zone and Detection
+
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `scanZoneWidth` | number | `260` | Scan area width (dp/pt) |
@@ -312,37 +355,87 @@ All options are optional. Defaults are safe for production.
 | `scanZoneOffsetY` | number | `0` | Vertical offset for scan area |
 | `restrictScanToZone` | boolean | `false` | Accept detection only when code center is inside scan zone |
 | `preferFrontCamera` | boolean | `false` | Prefer front camera on iOS (if available) |
+| `formats` | string[] | QR-focused defaults | Custom ZXing formats (Android only) |
+
+### Overlay, Frame, and Scan Line
+
+| Option | Type | Default | Description |
+|---|---|---|---|
 | `darkenOutside` | boolean | `true` | Darken area outside scan zone |
 | `overlayColor` | string | `#88000000` | Overlay color |
 | `frameColor` | string | `#00E676` | Scan frame color |
 | `frameThickness` | number | `3` | Frame stroke thickness |
 | `frameCornerRadius` | number | `12` | Frame corner radius |
-| `showLoader` | boolean | `true` | Show loader before returning result |
-| `loaderColor` | string | `#00E676` | Loader color |
-| `loadingDelayMs` | number | `700` | Delay before success callback |
-| `showFlashButton` | boolean | `true` | Show Flash button |
-| `flashButtonText` | string | `Flash` | Flash button label |
-| `flashButtonIcon` | string | `⚡` | Flash icon in `buttonMode: "icon"` |
-| `showCancelButton` | boolean | `true` | Show Cancel button |
-| `cancelButtonText` | string | `Cancel` | Cancel button label |
-| `cancelButtonIcon` | string | `✕` | Cancel icon in `buttonMode: "icon"` |
-| `buttonMode` | string | `text` | `text` or `icon` |
-| `buttonSize` | number | `52` | Button height; icon mode uses square |
-| `buttonTextWidth` | number | `110` | Text mode button width |
-| `buttonCornerRadius` | number | `10` | Button corner radius |
-| `buttonSpacing` | number | `16` | Space between flash/cancel buttons |
-| `buttonBottomOffset` | number | `46` | Distance from bottom edge |
-| `buttonTextColor` | string | `#FFFFFFFF` | Button text color |
-| `buttonBackgroundColor` | string | `#66000000` | Button background color |
 | `animateScanLine` | boolean | `true` | Enable animated scan line |
 | `scanLineColor` | string | `#00E676` | Scan line color |
 | `scanLineThickness` | number | `3` | Scan line thickness |
 | `scanLineDurationMs` | number | `1800` | Full up/down animation duration |
+
+### Header
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `headerText` | string | `""` | Top centered header text (empty = hidden) |
+| `headerHeight` | number | `56` | Header content height (dp/pt), rendered below top safe area |
+| `headerPadding` | number | `12` | Inner text padding inside header (dp/pt) |
+| `safeAreaColor` | string | `""` | Top safe-area overlay color. Empty keeps app/theme default background |
+| `headerBackgroundColor` | string | `#00000000` | Header background color only (safe area keeps app/default background) |
+| `headerTextColor` | string | `#FFFFFFFF` | Header text color |
+| `headerFontSize` | number | `18` | Header text size |
+
+### Buttons: Layout and Content
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `showFlashButton` | boolean | `true` | Show Flash button |
+| `showCancelButton` | boolean | `true` | Show Cancel button |
+| `buttonMode` | string | `text` | `text` or `icon` |
+| `buttonSize` | number | `52` | Base size for icon mode |
+| `buttonWidth` | number | `110` | Text mode button width |
+| `buttonHeight` | number | `52` | Button height in both modes |
+| `buttonContentSize` | number | `22` | Text/emoji/SVG icon size in button content |
+| `buttonCornerRadius` | number | `10` | Button corner radius |
+| `buttonSpacing` | number | `16` | Space between flash/cancel buttons |
+| `buttonBottomOffset` | number | `46` | Distance from bottom edge |
+| `flashButtonText` | string | `Flash` | Flash button label |
+| `flashButtonIcon` | string | `⚡` | Icon content in `buttonMode: "icon"` (emoji/text/inline SVG/data SVG URL) |
+| `cancelButtonText` | string | `Cancel` | Cancel button label |
+| `cancelButtonIcon` | string | `✕` | Icon content in `buttonMode: "icon"` (emoji/text/inline SVG/data SVG URL) |
+
+### Buttons: Colors (Global + Per-Button Overrides)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `buttonTextColor` | string | `#FFFFFFFF` | Button text/icon color (normal) |
+| `buttonBackgroundColor` | string | `#66000000` | Button background color (normal) |
+| `flashButtonTextColor` | string | `""` | Flash text/icon color override (normal) |
+| `flashButtonBackgroundColor` | string | `""` | Flash background override (normal) |
+| `flashButtonActiveTextColor` | string | `""` | Flash text/icon color override (active) |
+| `flashButtonActiveBackgroundColor` | string | `""` | Flash background override (active) |
+| `cancelButtonTextColor` | string | `""` | Cancel text/icon color override (normal) |
+| `cancelButtonBackgroundColor` | string | `""` | Cancel background override (normal) |
+
+`active` state behavior:
+- Flash button: active while pressed and while torch is ON.
+- Cancel button: uses only normal colors.
+- Flash active colors are persisted through toggle state.
+
+### Session Behavior and Feedback
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `showLoader` | boolean | `true` | Show loader before returning result |
+| `loaderColor` | string | `#00E676` | Loader color |
+| `loadingDelayMs` | number | `700` | Delay before success callback |
+| `hapticFeedback` | boolean | `true` | Vibrate/beep on success |
+
+### Debug and Platform-Specific
+
+| Option | Type | Default | Description |
+|---|---|---|---|
 | `debug` | boolean | `false` | Enable native debug logs for scan lifecycle |
 | `debugTag` | string | `QrScannerPro` | Prefix tag for native logs |
-| `hapticFeedback` | boolean | `true` | Vibrate/beep on success |
 | `returnRawBytesBase64` | boolean | `false` | Return raw bytes (Android only) |
-| `formats` | string[] | QR-focused defaults | Custom ZXing formats (Android only) |
 
 ### Debug mode
 
@@ -369,25 +462,50 @@ Native logs will include events for:
 - cancel button / cancel from JS
 - scanner close with success/error
 
-### Rounded scan-zone cutout and icon buttons
-
-Use these options to keep overlay cutout and frame visually consistent, and render circular icon buttons:
+### Header + icon buttons
 
 ```js
 {
+  headerText: "Scan payment QR",
+  headerHeight: 60,
+  headerPadding: 12,
+  safeAreaColor: "#101214",
+  headerBackgroundColor: "#66000000",
+  headerTextColor: "#FFFFFF",
+  headerFontSize: 18,
+
   frameCornerRadius: 14,
   overlayColor: "#CC000000",
   buttonMode: "icon",
   buttonSize: 54,
+  buttonHeight: 54,
+  buttonWidth: 120,
+  buttonContentSize: 20,
   buttonCornerRadius: 27,
   buttonSpacing: 14,
   buttonBottomOffset: 56,
-  buttonTextColor: "#FFFFFF",
+
+  // Base colors (used by both buttons by default)
+  buttonTextColor: "#F8FAFC",
   buttonBackgroundColor: "#A61E1E1E",
-  flashButtonIcon: "⚡",
-  cancelButtonIcon: "✕"
+
+  // Flash normal + active
+  flashButtonTextColor: "#F8FAFC",
+  flashButtonBackgroundColor: "#AA0EA5E9",
+  flashButtonActiveTextColor: "#0B1220",
+  flashButtonActiveBackgroundColor: "#FF38BDF8",
+
+  // Cancel normal
+  cancelButtonTextColor: "#FFFFFF",
+  cancelButtonBackgroundColor: "#AA374151",
+
+  // Icon value can be emoji/text or inline SVG / data:image/svg+xml,...
+  flashButtonIcon: "<svg viewBox='0 0 24 24'><path d='M13 2L5 14h6l-1 8 9-13h-6l0-7z'/></svg>",
+  cancelButtonIcon: "<svg viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='currentColor' stroke-width='2' fill='none'/></svg>"
 }
 ```
+
+> Header font uses **Satoshi** when available on device; otherwise it falls back to system semibold font.
 
 ## Production recommendations
 

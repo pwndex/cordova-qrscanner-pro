@@ -14,11 +14,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Build;
+import android.graphics.Typeface;
+import android.view.WindowInsets;
 import android.util.Base64;
 import android.util.Log;
 import com.journeyapps.barcodescanner.Size;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -26,6 +29,9 @@ import android.view.animation.LinearInterpolator;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -46,6 +52,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 public class ScannerActivity extends Activity {
     public static final String EXTRA_OPTIONS_JSON = "qrscannerpro.options";
@@ -59,8 +66,14 @@ public class ScannerActivity extends Activity {
     private DecoratedBarcodeView barcodeView;
     private ProgressBar loader;
     private OverlayView overlayView;
+    private View safeAreaTopView;
+    private TextView headerTextView;
+    private FrameLayout flashButtonContainer;
+    private FrameLayout cancelButtonContainer;
     private Button flashButton;
     private Button cancelButton;
+    private WebView flashButtonSvgView;
+    private WebView cancelButtonSvgView;
     private Handler handler;
     private BeepManager beepManager;
     private JSONObject options;
@@ -70,6 +83,8 @@ public class ScannerActivity extends Activity {
     private boolean debugEnabled = false;
     private String debugTag = "QrScannerPro-Android";
     private long sessionToken;
+    private int appliedSafeTopPx = -1;
+    private String appliedSafeAreaColor = null;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -122,6 +137,21 @@ public class ScannerActivity extends Activity {
         overlayView = new OverlayView(this, options);
         root.addView(overlayView);
 
+        safeAreaTopView = new View(this);
+        FrameLayout.LayoutParams safeAreaParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0
+        );
+        safeAreaParams.gravity = Gravity.TOP;
+        safeAreaTopView.setLayoutParams(safeAreaParams);
+        safeAreaTopView.setVisibility(View.GONE);
+        root.addView(safeAreaTopView);
+
+        headerTextView = buildHeaderView();
+        if (headerTextView != null) {
+            root.addView(headerTextView);
+        }
+
         loader = new ProgressBar(this);
         FrameLayout.LayoutParams loaderParams = new FrameLayout.LayoutParams(dp(48), dp(48));
         loaderParams.gravity = Gravity.CENTER;
@@ -133,86 +163,154 @@ public class ScannerActivity extends Activity {
         }
         root.addView(loader);
 
-        flashButton = createButton(
-                options.optString("flashButtonText", "Flash"),
-                options.optString("flashButtonIcon", "\u26A1")
-        );
+        flashButtonContainer = new FrameLayout(this);
+        flashButton = createButton(true);
+        flashButtonContainer.addView(flashButton);
         FrameLayout.LayoutParams flashParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         applyBottomButtonLayout(flashParams, true);
-        flashButton.setLayoutParams(flashParams);
+        flashButtonContainer.setLayoutParams(flashParams);
         flashButton.setOnClickListener(v -> {
-            boolean enabled = toggleTorch();
-            updateFlashText(enabled);
+            boolean isActive = toggleTorch();
+            setFlashVisualState(isActive);
         });
-        flashButton.setVisibility(options.optBoolean("showFlashButton", true) ? View.VISIBLE : View.GONE);
-        root.addView(flashButton);
+        flashButtonContainer.setVisibility(options.optBoolean("showFlashButton", true) ? View.VISIBLE : View.GONE);
+        root.addView(flashButtonContainer);
 
-        cancelButton = createButton(
-                options.optString("cancelButtonText", "Cancel"),
-                options.optString("cancelButtonIcon", "\u2715")
-        );
+        cancelButtonContainer = new FrameLayout(this);
+        cancelButton = createButton(false);
+        cancelButtonContainer.addView(cancelButton);
         FrameLayout.LayoutParams cancelParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         applyBottomButtonLayout(cancelParams, false);
-        cancelButton.setLayoutParams(cancelParams);
+        cancelButtonContainer.setLayoutParams(cancelParams);
         cancelButton.setOnClickListener(v -> cancelScan("Scan cancelled by user."));
-        cancelButton.setVisibility(options.optBoolean("showCancelButton", true) ? View.VISIBLE : View.GONE);
-        root.addView(cancelButton);
+        cancelButtonContainer.setVisibility(options.optBoolean("showCancelButton", true) ? View.VISIBLE : View.GONE);
+        root.addView(cancelButtonContainer);
 
         setContentView(root);
+        applyTopSafeAreaInsets();
+        attachSvgIconIfNeeded(true);
+        attachSvgIconIfNeeded(false);
+        refreshFlashButtonAppearance();
+        refreshCancelButtonAppearance();
     }
 
-    private Button createButton(String text, String icon) {
+    private TextView buildHeaderView() {
+        String title = options.optString("headerText", "").trim();
+        if (title.isEmpty()) {
+            return null;
+        }
+        TextView header = new TextView(this);
+        header.setText(title);
+        header.setGravity(Gravity.CENTER);
+        header.setTextColor(parseColor(options.optString("headerTextColor", "#FFFFFFFF"), Color.WHITE));
+        int headerHeight = Math.max(32, options.optInt("headerHeight", 56));
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(headerHeight)
+        );
+        params.gravity = Gravity.TOP;
+        header.setLayoutParams(params);
+        header.setBackgroundColor(parseColor(options.optString("headerBackgroundColor", "#00000000"), Color.TRANSPARENT));
+        int headerPadding = Math.max(0, options.optInt("headerPadding", 12));
+        header.setPadding(dp(headerPadding), dp(headerPadding), dp(headerPadding), dp(headerPadding));
+        float headerTextSize = Math.max(12f, (float) options.optDouble("headerFontSize", 18));
+        header.setTextSize(headerTextSize);
+        Typeface satoshi = Typeface.create("Satoshi", Typeface.NORMAL);
+        if (satoshi != null) {
+            header.setTypeface(satoshi);
+        }
+        return header;
+    }
+
+    private Button createButton(boolean isFlashButton) {
         Button button = new Button(this);
         button.setAllCaps(false);
-        boolean iconMode = "icon".equalsIgnoreCase(options.optString("buttonMode", "text"));
+        boolean iconMode = isIconMode();
         int buttonSizeDp = Math.max(36, options.optInt("buttonSize", 52));
-        int radiusDp = Math.max(0, options.optInt("buttonCornerRadius", iconMode ? (buttonSizeDp / 2) : 10));
-        String label = iconMode ? icon : text;
+        int buttonHeightDp = getButtonHeightDp();
+        int buttonWidthDp = getButtonWidthDp();
+        int radiusDp = Math.max(0, options.optInt("buttonCornerRadius", iconMode ? (buttonHeightDp / 2) : 10));
+        String label = getButtonLabel(isFlashButton);
+        float contentSizeSp = getButtonContentSizeSp();
 
         button.setText(label);
-        button.setTextSize(iconMode ? 22f : 14f);
+        button.setTextSize(contentSizeSp);
         if (iconMode) {
             button.setMinWidth(0);
             button.setMinimumWidth(0);
             button.setMinHeight(0);
             button.setMinimumHeight(0);
-            button.setWidth(dp(buttonSizeDp));
-            button.setHeight(dp(buttonSizeDp));
+            button.setWidth(dp(buttonWidthDp));
+            button.setHeight(dp(buttonHeightDp));
             button.setPadding(0, 0, 0, 0);
         } else {
-            int textWidthDp = Math.max(86, options.optInt("buttonTextWidth", 110));
-            button.setMinWidth(dp(textWidthDp));
+            button.setMinWidth(dp(buttonWidthDp));
+            button.setMinimumWidth(dp(buttonWidthDp));
+            button.setMinHeight(dp(buttonHeightDp));
+            button.setMinimumHeight(dp(buttonHeightDp));
             button.setPadding(dp(14), dp(8), dp(14), dp(8));
         }
-        button.setTextColor(parseColor(options.optString("buttonTextColor", "#FFFFFFFF"), Color.WHITE));
+        FrameLayout.LayoutParams inner = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        button.setLayoutParams(inner);
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(parseColor(options.optString("buttonBackgroundColor", "#66000000"), Color.argb(102, 0, 0, 0)));
+        bg.setColor(getButtonBackgroundColor(isFlashButton, false));
         bg.setCornerRadius(dp(radiusDp));
         button.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            button.setBackgroundTintList(null);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                button.setForeground(null);
+            }
+        }
+        button.setTextColor(getButtonTextColor(isFlashButton, false));
         return button;
     }
 
     private void applyBottomButtonLayout(FrameLayout.LayoutParams params, boolean isFlash) {
         int spacing = Math.max(8, options.optInt("buttonSpacing", 16));
         int bottomOffset = Math.max(8, options.optInt("buttonBottomOffset", 46));
-        int buttonSizeDp = Math.max(36, options.optInt("buttonSize", 52));
-        boolean iconMode = "icon".equalsIgnoreCase(options.optString("buttonMode", "text"));
+        int buttonWidthDp = getButtonWidthDp();
+        int buttonHeightDp = getButtonHeightDp();
 
         params.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        params.bottomMargin = dp(bottomOffset);
-        int textWidthDp = Math.max(86, options.optInt("buttonTextWidth", 110));
-        int halfGap = dp((spacing / 2) + (iconMode ? (buttonSizeDp / 2) : (textWidthDp / 2)));
+        params.width = dp(buttonWidthDp);
+        params.height = dp(buttonHeightDp);
+        params.bottomMargin = dp(bottomOffset) + getSafeAreaBottomPx();
+        int halfGapPx = dp((spacing / 2) + (buttonWidthDp / 2));
         if (isFlash) {
-            params.rightMargin = halfGap;
+            params.leftMargin = 0;
+            params.rightMargin = 0;
+            flashButtonContainer.setTranslationX(-halfGapPx);
         } else {
-            params.leftMargin = halfGap;
+            params.leftMargin = 0;
+            params.rightMargin = 0;
+            cancelButtonContainer.setTranslationX(halfGapPx);
         }
+    }
+
+    private int getButtonHeightDp() {
+        return Math.max(32, options.optInt("buttonHeight", options.optInt("buttonSize", 52)));
+    }
+
+    private int getButtonWidthDp() {
+        if (isIconMode()) {
+            return Math.max(32, options.optInt("buttonSize", 52));
+        }
+        return Math.max(64, options.optInt("buttonWidth", 110));
+    }
+
+    private float getButtonContentSizeSp() {
+        float fallback = isIconMode() ? 22f : 15f;
+        return Math.max(10f, (float) options.optDouble("buttonContentSize", fallback));
     }
 
     private void startScanner() {
@@ -322,6 +420,7 @@ public class ScannerActivity extends Activity {
         if (!isFlashAvailable()) {
             debugLog("toggleTorch ignored: flash not available");
             torchEnabled = false;
+            setFlashVisualState(false);
             return false;
         }
         setTorch(!torchEnabled);
@@ -332,10 +431,12 @@ public class ScannerActivity extends Activity {
     public void setTorch(boolean enabled) {
         if (!isFlashAvailable()) {
             torchEnabled = false;
-            updateFlashText(false);
+            setFlashVisualState(false);
             debugLog("setTorch ignored: flash not available");
             return;
         }
+        // Keep UI toggle deterministic even if vendor camera stack reports state inconsistently.
+        torchEnabled = enabled;
         try {
             if (enabled) {
                 barcodeView.setTorchOn();
@@ -345,10 +446,9 @@ public class ScannerActivity extends Activity {
             torchEnabled = enabled;
             debugLog("setTorch=" + enabled);
         } catch (RuntimeException e) {
-            torchEnabled = false;
             debugLog("setTorch failed: " + e.getMessage());
         }
-        updateFlashText(torchEnabled);
+        setFlashVisualState(enabled);
     }
 
     public boolean isTorchEnabled() {
@@ -359,14 +459,320 @@ public class ScannerActivity extends Activity {
         return getPackageManager().hasSystemFeature("android.hardware.camera.flash");
     }
 
-    private void updateFlashText(boolean enabled) {
-        String base = options.optString("flashButtonText", "Flash");
-        boolean iconMode = "icon".equalsIgnoreCase(options.optString("buttonMode", "text"));
-        if (iconMode) {
-            flashButton.setText(enabled ? "\uD83D\uDCA1" : options.optString("flashButtonIcon", "\u26A1"));
-        } else {
-            flashButton.setText(enabled ? base + " ON" : base);
+    private boolean isIconMode() {
+        return "icon".equalsIgnoreCase(options.optString("buttonMode", "text"));
+    }
+
+    private String getButtonLabel(boolean isFlashButton) {
+        if (!isIconMode()) {
+            if (isFlashButton) {
+                String base = options.optString("flashButtonText", "Flash");
+                return torchEnabled ? base + " ON" : base;
+            }
+            return options.optString("cancelButtonText", "Cancel");
         }
+        return isFlashButton
+                ? options.optString("flashButtonIcon", "\u26A1")
+                : options.optString("cancelButtonIcon", "\u2715");
+    }
+
+    private int getButtonTextColor(boolean isFlashButton, boolean active) {
+        String globalColor = options.optString("buttonTextColor", "#FFFFFFFF");
+        String buttonColor;
+        if (isFlashButton) {
+            buttonColor = options.optString(active ? "flashButtonActiveTextColor" : "flashButtonTextColor", "");
+        } else {
+            buttonColor = options.optString("cancelButtonTextColor", "");
+        }
+        return parseColor(buttonColor.isEmpty() ? globalColor : buttonColor, Color.WHITE);
+    }
+
+    private int getButtonBackgroundColor(boolean isFlashButton, boolean active) {
+        String globalColor = options.optString("buttonBackgroundColor", "#66000000");
+        String buttonColor;
+        if (isFlashButton) {
+            buttonColor = options.optString(active ? "flashButtonActiveBackgroundColor" : "flashButtonBackgroundColor", "");
+        } else {
+            buttonColor = options.optString("cancelButtonBackgroundColor", "");
+        }
+        return parseColor(buttonColor.isEmpty() ? globalColor : buttonColor, Color.argb(102, 0, 0, 0));
+    }
+
+    private void styleButtonForState(Button button, boolean isFlashButton, boolean active) {
+        button.setTextColor(getButtonTextColor(isFlashButton, active));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        int buttonSizeDp = Math.max(36, options.optInt("buttonSize", 52));
+        int radiusDp = Math.max(0, options.optInt("buttonCornerRadius", isIconMode() ? (buttonSizeDp / 2) : 10));
+        bg.setCornerRadius(dp(radiusDp));
+        bg.setColor(getButtonBackgroundColor(isFlashButton, active));
+        button.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            button.setBackgroundTintList(null);
+        }
+    }
+
+    private String getButtonIconSource(boolean isFlashButton) {
+        return options.optString(isFlashButton ? "flashButtonIcon" : "cancelButtonIcon",
+                isFlashButton ? "\u26A1" : "\u2715").trim();
+    }
+
+    private boolean isSvgValue(String iconValue) {
+        String value = iconValue == null ? "" : iconValue.trim().toLowerCase();
+        return value.startsWith("<svg") || value.startsWith("data:image/svg")
+                || value.contains(".svg");
+    }
+
+    private void refreshFlashButtonAppearance() {
+        setFlashVisualState(torchEnabled);
+    }
+
+    private void applyFlashButtonVisualState(boolean isFlashActive) {
+        int textColor = getFlashTextColor(isFlashActive);
+        int bgColor = getFlashBackgroundColor(isFlashActive);
+        flashButton.setTextColor(textColor);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        int buttonSizeDp = Math.max(36, options.optInt("buttonSize", 52));
+        int radiusDp = Math.max(0, options.optInt("buttonCornerRadius", isIconMode() ? (buttonSizeDp / 2) : 10));
+        bg.setCornerRadius(dp(radiusDp));
+        bg.setColor(bgColor);
+        flashButton.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            flashButton.setBackgroundTintList(null);
+        }
+    }
+
+    private void setFlashVisualState(boolean isFlashActive) {
+        applyFlashButtonVisualState(isFlashActive);
+        if (!hasSvg(true)) {
+            flashButton.setText(getButtonLabel(true));
+        }
+        updateSvgButton(true, isFlashActive);
+    }
+
+    private int getFlashTextColor(boolean active) {
+        String global = options.optString("buttonTextColor", "#FFFFFFFF");
+        String normal = options.optString("flashButtonTextColor", "");
+        String activeColor = options.optString("flashButtonActiveTextColor", "");
+        String selected;
+        if (active) {
+            selected = !activeColor.isEmpty() ? activeColor : (!normal.isEmpty() ? normal : global);
+        } else {
+            selected = !normal.isEmpty() ? normal : global;
+        }
+        return parseColor(selected, Color.WHITE);
+    }
+
+    private int getFlashBackgroundColor(boolean active) {
+        String global = options.optString("buttonBackgroundColor", "#66000000");
+        String normal = options.optString("flashButtonBackgroundColor", "");
+        String activeColor = options.optString("flashButtonActiveBackgroundColor", "");
+        String selected;
+        if (active) {
+            selected = !activeColor.isEmpty() ? activeColor : (!normal.isEmpty() ? normal : global);
+        } else {
+            selected = !normal.isEmpty() ? normal : global;
+        }
+        return parseColor(selected, Color.argb(102, 0, 0, 0));
+    }
+
+    private int getSafeAreaTopPx() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+                if (insets != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        return insets.getInsets(WindowInsets.Type.statusBars()).top;
+                    }
+                    return insets.getSystemWindowInsetTop();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resId > 0) {
+            return getResources().getDimensionPixelSize(resId);
+        }
+        return 0;
+    }
+
+    private int getSafeAreaBottomPx() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+                if (insets != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        return insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                    }
+                    return insets.getSystemWindowInsetBottom();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return 0;
+    }
+
+    private void applyTopSafeAreaInsets() {
+        int safeTopPx = getSafeAreaTopPx();
+        String safeAreaColor = options.optString("safeAreaColor", "").trim();
+        boolean sameColor = (appliedSafeAreaColor == null && safeAreaColor.isEmpty())
+                || (appliedSafeAreaColor != null && appliedSafeAreaColor.equals(safeAreaColor));
+        if (safeTopPx == appliedSafeTopPx && sameColor) {
+            return;
+        }
+        appliedSafeTopPx = safeTopPx;
+        appliedSafeAreaColor = safeAreaColor.isEmpty() ? null : safeAreaColor;
+        applySafeAreaTopOverlay(safeTopPx, safeAreaColor);
+        applyTopMargin(barcodeView, safeTopPx);
+        applyTopMargin(overlayView, safeTopPx);
+        if (headerTextView != null) {
+            applyTopMargin(headerTextView, safeTopPx);
+        }
+        if (loader != null) {
+            loader.setTranslationY(safeTopPx / 2f);
+        }
+        if (flashButtonContainer != null && flashButtonContainer.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+            applyBottomButtonLayout((FrameLayout.LayoutParams) flashButtonContainer.getLayoutParams(), true);
+        }
+        if (cancelButtonContainer != null && cancelButtonContainer.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+            applyBottomButtonLayout((FrameLayout.LayoutParams) cancelButtonContainer.getLayoutParams(), false);
+        }
+    }
+
+    private void applySafeAreaTopOverlay(int safeTopPx, String safeAreaColor) {
+        if (safeAreaTopView == null || !(safeAreaTopView.getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) safeAreaTopView.getLayoutParams();
+        if (lp.height != safeTopPx) {
+            lp.height = Math.max(0, safeTopPx);
+            safeAreaTopView.setLayoutParams(lp);
+        }
+        if (safeTopPx <= 0 || safeAreaColor == null || safeAreaColor.isEmpty()) {
+            safeAreaTopView.setVisibility(View.GONE);
+            return;
+        }
+        safeAreaTopView.setVisibility(View.VISIBLE);
+        safeAreaTopView.setBackgroundColor(parseColor(safeAreaColor, Color.TRANSPARENT));
+    }
+
+    private void applyTopMargin(View view, int topMarginPx) {
+        if (view == null) {
+            return;
+        }
+        ViewGroup.LayoutParams raw = view.getLayoutParams();
+        if (!(raw instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) raw;
+        if (lp.topMargin == topMarginPx) {
+            return;
+        }
+        lp.topMargin = topMarginPx;
+        view.setLayoutParams(lp);
+    }
+
+    private void refreshCancelButtonAppearance() {
+        boolean active = false;
+        styleButtonForState(cancelButton, false, false);
+        if (!hasSvg(false)) {
+            cancelButton.setText(getButtonLabel(false));
+        }
+        updateSvgButton(false, active);
+    }
+
+    private boolean hasSvg(boolean isFlashButton) {
+        return isIconMode() && isSvgValue(getButtonIconSource(isFlashButton));
+    }
+
+    private void attachSvgIconIfNeeded(boolean isFlashButton) {
+        if (!hasSvg(isFlashButton)) {
+            return;
+        }
+        FrameLayout container = isFlashButton ? flashButtonContainer : cancelButtonContainer;
+        Button button = isFlashButton ? flashButton : cancelButton;
+        WebView svgView = createSvgView();
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                dp(Math.max(10, Math.round(getButtonContentSizeSp()))),
+                dp(Math.max(10, Math.round(getButtonContentSizeSp())))
+        );
+        lp.gravity = Gravity.CENTER;
+        svgView.setLayoutParams(lp);
+        container.addView(svgView);
+        if (isFlashButton) {
+            flashButtonSvgView = svgView;
+            svgView.setOnTouchListener((v, event) -> {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        flashButton.performClick();
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        return true;
+                    default:
+                        return true;
+                }
+            });
+        } else {
+            cancelButtonSvgView = svgView;
+            svgView.setOnTouchListener((v, event) -> {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        cancelButton.performClick();
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        return true;
+                    default:
+                        return true;
+                }
+            });
+        }
+        button.setText("");
+    }
+
+    private WebView createSvgView() {
+        WebView webView = new WebView(this);
+        webView.setBackgroundColor(Color.TRANSPARENT);
+        webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        webView.setClickable(false);
+        webView.setFocusable(false);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(false);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
+        return webView;
+    }
+
+    private void updateSvgButton(boolean isFlashButton, boolean active) {
+        WebView svgView = isFlashButton ? flashButtonSvgView : cancelButtonSvgView;
+        if (svgView == null) {
+            return;
+        }
+        String svg = getButtonIconSource(isFlashButton);
+        if (svg.isEmpty()) {
+            return;
+        }
+        int tint = getButtonTextColor(isFlashButton, active);
+        int iconPx = dp(Math.max(10, Math.round(getButtonContentSizeSp())));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(iconPx, iconPx);
+        lp.gravity = Gravity.CENTER;
+        svgView.setLayoutParams(lp);
+        String tintCss = String.format("#%06X", 0xFFFFFF & tint);
+        String body;
+        if (svg.trim().startsWith("<svg")) {
+            body = svg.replaceFirst("<svg", "<svg fill=\"currentColor\"");
+        } else {
+            body = "<img src=\"" + svg + "\" style=\"width:100%;height:100%;object-fit:contain;\"/>";
+        }
+        String html = "<html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>"
+                + "<style>html,body{margin:0;padding:0;background:transparent;width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:"
+                + tintCss + ";}svg,img{width:" + iconPx + "px !important;height:" + iconPx + "px !important;max-width:90%;max-height:90%;}</style></head><body>" + body + "</body></html>";
+        String encoded = Base64.encodeToString(html.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+        svgView.loadData(encoded, "text/html; charset=utf-8", "base64");
     }
 
     private Collection<BarcodeFormat> mapFormats(JSONArray arr) {
@@ -405,6 +811,7 @@ public class ScannerActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        applyTopSafeAreaInsets();
         if (barcodeView != null && !resultLocked) {
             barcodeView.resume();
         }
@@ -423,6 +830,12 @@ public class ScannerActivity extends Activity {
         debugLog("onDestroy");
         if (barcodeView != null) {
             barcodeView.pause();
+        }
+        if (flashButtonSvgView != null) {
+            flashButtonSvgView.destroy();
+        }
+        if (cancelButtonSvgView != null) {
+            cancelButtonSvgView.destroy();
         }
         handler.removeCallbacksAndMessages(null);
         QrScannerPro.activeScannerActivity = new java.lang.ref.WeakReference<>(null);
